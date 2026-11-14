@@ -72,6 +72,13 @@ def repair_tokens(tokens: list[dict], text: str) -> list[dict] | None:
     return out
 
 
+def _span(a: float, b: float) -> float:
+    """b - a rounded to microseconds. Token times are frame * 0.08 s in floating point, so an exact 0.8 s
+    pause can come out as 0.7999999999999999; rounding makes the thresholds below apply the same way
+    wherever the pause is."""
+    return round(b - a, 6)
+
+
 def _fill_times(tokens: list[dict]) -> list[dict]:
     """Keep every token with text. A missing start or end is taken from the neighbouring tokens."""
     toks = [dict(t) for t in tokens if _text(t).strip()]
@@ -118,7 +125,7 @@ def build_segments(tokens: list[dict], offset: float = 0.0, gap: float = 0.8, sh
     # at the very start of a chunk followed by a pause would be moved too; chunks are cut at quiet points,
     # so this is rare.
     if (len(timed) > 1 and float(timed[0]["start"]) == 0.0
-            and float(timed[1]["start"]) - float(timed[0]["end"]) >= gap
+            and _span(float(timed[0]["end"]), float(timed[1]["start"])) >= gap
             and not _text(timed[0]).strip().endswith(SENTENCE_END + CLAUSE_END)):
         timed[0] = {**timed[0], "start": timed[1]["start"], "end": timed[1]["start"]}
 
@@ -126,14 +133,14 @@ def build_segments(tokens: list[dict], offset: float = 0.0, gap: float = 0.8, sh
         text = _text(tok)
         start, end = float(tok["start"]), float(tok["end"])
         if cur:
-            pause = start - cur[-1][2]
-            long_enough = cur[-1][2] - cur[0][1] >= soft_max
-            if pause >= gap or end - cur[0][1] > hard_max:
+            pause = _span(cur[-1][2], start)
+            long_enough = _span(cur[0][1], cur[-1][2]) >= soft_max
+            if pause >= gap or _span(cur[0][1], end) > hard_max:
                 flush(force=True)  # a short fragment is not carried across a pause or past hard_max
             elif long_enough and pause >= short_gap:
                 flush()
         cur.append((text, start, end))
-        dur = end - cur[0][1]
+        dur = _span(cur[0][1], end)
         if text.endswith(SENTENCE_END) or (dur >= soft_max and text.endswith(CLAUSE_END)):
             flush()
         elif dur >= hard_max:

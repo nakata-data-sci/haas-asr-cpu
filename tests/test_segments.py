@@ -145,3 +145,14 @@ def test_ascii_marks_the_model_emits_close_segments():
     assert [s["text"] for s in build_segments(toks)] == ["本当!", "では"]
     long = [tok("あ", i * 0.5, i * 0.5 + 0.5) for i in range(17)] + [tok(",", 8.5, 8.6), tok("いい", 8.6, 9.0)]
     assert [s["text"][-1] for s in build_segments(long)] == [",", "い"]
+
+
+def test_thresholds_hold_for_frame_times_anywhere_in_a_chunk():
+    f = lambda n: n * 0.01 * 8  # NeMo: frame * window_stride * subsampling
+    for n in range(4, 404):  # the first token does not start at 0.0 (the frame-0 heuristic is tested above)
+        # a pause of exactly 10 frames = 0.8 s closes the segment wherever it falls
+        toks = [tok("今日は", f(n - 3), f(n)), tok("晴れです", f(n + 10), f(n + 13))]
+        assert [s["text"] for s in build_segments(toks)] == ["今日は", "晴れです"], n
+        # 250 frames = 20 s reaches hard_max
+        long = [tok("あ", f(n + i), f(n + i + 1)) for i in range(251)]
+        assert max(s["end"] - s["start"] for s in build_segments(long)) <= 20.0 + 1e-9, n
