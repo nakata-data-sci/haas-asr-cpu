@@ -17,19 +17,34 @@ released weights load unchanged, and adds sentence-level timestamps for Japanese
 Five Japanese TEDx talks (42 min in total), human-made Japanese subtitles as the reference, all on CPU
 (AMD Ryzen AI MAX+ 395, 16 threads, WSL2). CER is pooled over the five talks.
 
-| Model | CER | kana CER | kana CER, fillers excluded | Real-time factor | Time for 42 min |
-|---|---|---|---|---|---|
-| **Haas-ja-v1.0 (this package, float32)** | **9.36%** | **6.10%** | **5.82%** | 0.06 | 154 s |
-| Whisper large-v3 (faster-whisper, int8) | 10.19% | 7.00% | 7.00% | 0.45 | 1,129 s |
-| Parakeet-ja (`nvidia/parakeet-tdt_ctc-0.6b-ja`) | 13.19% | 8.51% | 8.49% | 0.07 | 173 s |
+| Model | CER | kana CER | kana CER, fillers excluded |
+|---|---|---|---|
+| **Haas-ja-v1.0 (this package, float32)** | **9.36%** | **6.10%** | **5.82%** |
+| Whisper large-v3 (faster-whisper, int8; 3 runs) | 10.19–10.89% | 7.00–7.63% | 7.00–7.62% |
+| Parakeet-ja (`nvidia/parakeet-tdt_ctc-0.6b-ja`) | 13.19% | 8.51% | 8.49% |
+
+Time for the 42 minutes, with the model loaded again for each file:
+
+| Model | Total | Loading | Inference | Inference real-time factor |
+|---|---|---|---|---|
+| **Haas-ja-v1.0 (this package)** | 158 s | 82 s | **76 s** | **0.030** |
+| Whisper large-v3 | 1,055–1,153 s | 21–34 s | 1,034–1,119 s | 0.41–0.44 |
+| Parakeet-ja | 165 s | 87 s | 78 s | 0.031 |
 
 - **kana CER** compares readings (both sides converted to hiragana with pykakasi), so kanji/kana spelling
   differences such as 有る/ある are not counted as errors.
 - **fillers excluded** does not count fillers (あの, えー, …) that a model added but the subtitles omit.
   On two of the five talks Haas wrote many fillers; Whisper and Parakeet wrote almost none.
-- Haas won on 3 of the 5 talks. Whisper was slightly better on one (8.45% vs 8.59%) and Parakeet on
-  another (7.40% vs 8.11%).
-- Haas's time includes loading the model (about 9 s per file).
+- Per talk, Haas was best on two talks in every run. On one talk the winner against Whisper changed between
+  Whisper runs, Whisper was slightly better on another (8.45% vs 8.59%) and Parakeet on the last
+  (7.40% vs 8.11%).
+- Whisper's results changed between identical runs on two of the five talks (for example 5.31%, 10.27%
+  and 6.23%); the bad runs contain repeated sentences and garbage text. faster-whisper retries with a
+  higher sampling temperature when an output looks wrong, which is likely the cause. Haas and Parakeet gave
+  identical results every run.
+- Loading is importing the libraries and loading the model: about 16 s per file for Haas (including starting
+  a subprocess, since it runs in its own environment) and Parakeet, 4–7 s for Whisper. With
+  `haas_asr_cpu.load()` the model is loaded once for many files.
 - Subtitle credit lines (翻訳: … / 校正: …) are removed from the reference.
 
 This is one machine and five talks of one genre, not a benchmark. The official results are on
@@ -180,7 +195,7 @@ This is an unofficial project, not affiliated with Third Intelligence.
 
 - **精度**: 日本語の TEDx 講演 5 本(計 42 分)で、表記ゆれとフィラーの差を除いたかな CER が 5.82%。
   同じ CPU の Whisper large-v3(7.00%)と Parakeet-ja(8.49%)より低い値でした(上の表)。
-- **速さ**: 実時間比 0.06(42 分を 154 秒)。Whisper large-v3 の約 7 倍です。
+- **速さ**: 推論の実時間比 0.030(42 分を 76 秒)。推論は Whisper large-v3 の約 14 倍の速さです(読み込みを含めると約 7 倍)。
 - **確かめ方**: flash-linear-attention 自身の参照実装 2 種と出力が一致することを、テストで確かめています。
 - **未確認**: GPU 版(bfloat16)との出力の突き合わせ、macOS・Windows での動作。
 
