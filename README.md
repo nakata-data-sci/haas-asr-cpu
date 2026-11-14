@@ -38,8 +38,9 @@ This is one machine and five talks of one genre, not a benchmark. The official r
 ## Install
 
 Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/). uv is needed, not just recommended: the
-dependency overrides that NeMo 2.7.3 needs to import, and the CPU-only PyTorch index, are uv settings in
-`pyproject.toml`. A plain `pip install` does not apply them (and pulls the CUDA build of PyTorch on Linux).
+CPU-only PyTorch index and the same dependency settings as Haas-ASR (overrides to versions with security
+fixes, bytecode compiled at install) are uv settings in `pyproject.toml`. A plain `pip install` does not
+apply them, and pulls the CUDA build of PyTorch on Linux.
 
 ```bash
 git clone https://github.com/nakata-data-sci/haas-asr-cpu.git
@@ -61,8 +62,9 @@ uv run haas-cpu-transcribe talk.wav --json talk.json --srt talk.srt --threads 8
 [00:00:50.427 --> 00:01:00.107] 私の家では…
 ```
 
-The transcript goes to stdout and progress to stderr (`-q` silences it). NeMo's own log lines are
-suppressed; pass `nemo_logs=True` to `transcribe()` to keep them.
+The transcript goes to stdout and progress to stderr (`-q` silences it). NeMo's log level is set to
+ERROR (pass `nemo_logs=True` to `load()` / `transcribe()` to keep its logs); a few import-time messages
+from other libraries can still appear on stderr.
 
 Python:
 

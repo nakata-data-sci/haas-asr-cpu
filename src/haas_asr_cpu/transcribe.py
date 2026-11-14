@@ -26,11 +26,11 @@ def load(model: str = DEFAULT_MODEL, threads: int | None = None, nemo_logs: bool
 
     if threads:
         torch.set_num_threads(threads)
-    install()
-    if not nemo_logs:
+    if not nemo_logs:  # before install(), which imports NeMo's ASR collection
         from nemo.utils import logging as nemo_logging
 
         nemo_logging.setLevel(nemo_logging.ERROR)
+    install()
     import haas_asr
 
     return haas_asr.load_model(model, device="cpu")

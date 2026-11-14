@@ -33,7 +33,10 @@ allow-direct-references = true
 packages = ["src/haas_asr_cpu"]
 
 [tool.uv]
-# Same overrides as Haas-ASR's own pyproject (needed for NeMo 2.7.3 to import).
+# Same as Haas-ASR's own pyproject (acc614f): write bytecode at install time (NeMo 2.7.3 can corrupt a shared
+# constant when a module is compiled at run time), and its overrides to versions with known security fixes
+# above NeMo 2.7.3's pins (Haas-ASR reports unchanged transcripts). Its virtualenv floor is for its dev tools.
+compile-bytecode = true
 override-dependencies = [
     "fsspec[http]>=2026.6.0",
     "hydra-core>=1.3.8",

@@ -33,17 +33,22 @@ def main() -> None:
     ap.add_argument("--batch-size", type=int, default=4)
     ap.add_argument("-q", "--quiet", action="store_true")
     args = ap.parse_args()
+    for out in (args.json, args.srt):  # fail before the (long) transcription, not after
+        if out is not None and not out.resolve().parent.is_dir():
+            ap.error(f"directory does not exist: {out.resolve().parent}")
     if not sys.stdout.isatty():  # e.g. redirected on Japanese Windows (cp932 cannot encode every kanji)
         sys.stdout.reconfigure(encoding="utf-8")
 
     segs = transcribe(str(args.audio), model=args.model, threads=args.threads,
                       batch_size=args.batch_size, verbose=not args.quiet)
+    for s in segs:  # print first, so the transcript is not lost if writing a file fails
+        print(f"[{_ts(s['start'])} --> {_ts(s['end'])}] {s['text']}")
+    sys.stdout.flush()
     if args.json:
-        args.json.write_text(json.dumps({"model": args.model, "segments": segs}, ensure_ascii=False, indent=2), encoding="utf-8")
+        args.json.write_text(json.dumps({"model": args.model, "segments": segs}, ensure_ascii=False, indent=2),
+                             encoding="utf-8")
     if args.srt:
         args.srt.write_text(to_srt(segs), encoding="utf-8")
-    for s in segs:
-        print(f"[{_ts(s['start'])} --> {_ts(s['end'])}] {s['text']}")
 
 
 if __name__ == "__main__":
