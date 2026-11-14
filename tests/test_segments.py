@@ -183,3 +183,11 @@ def test_comma_and_short_gap_at_exact_thresholds():
     # after 8 s, a pause of exactly short_gap (0.3 s) closes the segment
     toks = [tok("あ", i * 0.5, i * 0.5 + 0.5) for i in range(17)] + [tok("いい", 8.8, 9.0)]
     assert len(build_segments(toks)) == 2
+
+
+def test_repair_rejects_a_byte_fallback_run_with_no_text():
+    assert repair_tokens([tok("あ", 0, 1), tok("�", 1, 2), tok("い", 2, 3)], "あい") is None
+
+
+def test_single_token_at_frame_zero():
+    assert build_segments([tok("はい", 0.0, 0.3)]) == [{"start": 0.0, "end": 0.3, "text": "はい"}]

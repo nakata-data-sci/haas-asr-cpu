@@ -116,3 +116,9 @@ def test_cli_rejects_zero_threads(monkeypatch, tmp_path):
     monkeypatch.setattr(sys, "argv", ["haas-cpu-transcribe", str(wav), "--threads", "0"])
     with pytest.raises(SystemExit):
         cli.main()
+
+
+def test_transcribe_passes_nemo_logs_on_to_load(stub_haas, restore_process_state):
+    nemo_logging.setLevel(nemo_logging.INFO)
+    t.transcribe("x.wav", model="m", nemo_logs=True)
+    assert nemo_logging.getEffectiveLevel() == nemo_logging.INFO
