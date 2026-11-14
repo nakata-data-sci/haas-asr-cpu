@@ -84,8 +84,9 @@ def test_first_token_at_frame_zero_moves_to_speech():
 
 
 def test_full_width_marks_close_segments():
-    toks = [tok("本当", 0.0, 0.4), tok("？", 0.4, 0.5), tok("はい", 0.6, 0.9), tok("！", 0.9, 1.0)]
-    assert [s["text"] for s in build_segments(toks)] == ["本当？", "はい！"]
+    toks = [tok("本当", 0.0, 0.4), tok("？", 0.4, 0.5), tok("はい", 0.6, 0.9), tok("！", 0.9, 1.0),
+            tok("では", 1.1, 1.4)]
+    assert [s["text"] for s in build_segments(toks)] == ["本当？", "はい！", "では"]
     long = [tok("あ", i * 0.5, i * 0.5 + 0.5) for i in range(17)] + [tok("，", 8.5, 8.6), tok("いい", 8.6, 9.0)]
     assert [s["text"][-1] for s in build_segments(long)] == ["，", "い"]
 
@@ -131,3 +132,8 @@ def test_token_with_end_but_no_start_keeps_its_text_and_time():
 def test_first_token_closing_a_clause_stays():
     toks = [tok("でも、", 0.0, 0.3), tok("今日は", 2.0, 2.5), tok("晴れ。", 2.5, 3.0)]
     assert build_segments(toks)[0]["start"] == 0.0
+
+
+def test_blank_tokens_do_not_split_a_pause():
+    toks = [tok("あ", 0.5, 0.6), tok("", 1.0, 1.4), tok("い", 1.5, 1.7)]  # 0.9 s pause between あ and い
+    assert [s["text"] for s in build_segments(toks)] == ["あ", "い"]
