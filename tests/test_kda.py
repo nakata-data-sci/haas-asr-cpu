@@ -189,3 +189,25 @@ def test_parameter_names_and_shapes_match_the_released_checkpoint():
         "g_proj.0.weight": (64, 640), "g_proj.1.weight": (320, 64), "g_proj.1.bias": (320,),
         "o_norm.weight": (64,), "o_proj.weight": (640, 320),
     }
+
+
+def test_haas_prediction_network_with_the_cpu_layer_decodes_step_by_step():
+    """Haas's own KDAPredictionNetwork, built after install(), packs the layer's states into NeMo's two
+    tensors; decoding one label at a time through that packing equals the full sequence."""
+    from haas_asr.prednet import KDAConfig, KDAPredictionNetwork
+
+    from haas_asr_cpu.kda import install
+
+    install()
+    torch.manual_seed(0)
+    net = KDAPredictionNetwork(64, 2, KDAConfig(num_heads=2, head_dim=16, expand_v=2.0, conv_size=4,
+                                                final_norm=True)).eval()
+    assert all(isinstance(layer, KimiDeltaAttentionCPU) for layer in net.layers)
+    y = torch.randn(7, 3, 64)  # (U, B, H), time first as NeMo calls it
+    with torch.no_grad():
+        full, _ = net(y)
+        state, outs = None, []
+        for u in range(7):
+            out, state = net(y[u:u + 1], state)
+            outs.append(out)
+    torch.testing.assert_close(torch.cat(outs, 0), full, rtol=1e-5, atol=1e-5)

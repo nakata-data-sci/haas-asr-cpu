@@ -202,3 +202,9 @@ def test_no_comma_or_short_pause_split_before_soft_max():
         assert len(build_segments(comma)) == 1, n
         pause = [tok("あ", f(n + i), f(n + i + 1)) for i in range(99)] + [tok("いい", f(n + 103), f(n + 105))]
         assert len(build_segments(pause)) == 1, n
+
+
+def test_frame_zero_token_stays_before_a_pause_shorter_than_gap():
+    f = lambda n: n * 0.01 * 8
+    toks = [tok("あの", 0.0, f(3)), tok("今日は", f(12), f(15))]  # 9 frames = 0.72 s < 0.8 s
+    assert build_segments(toks)[0]["start"] == 0.0

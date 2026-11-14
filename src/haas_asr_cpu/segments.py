@@ -4,7 +4,7 @@ NeMo groups "words" (split on spaces) into segments at . ! ?, so Japanese text, 
 comes back as one segment per audio chunk. Here tokens are added one by one and a segment is closed at:
   - a token ending with a sentence-final mark (。?!？！)
   - a pause of `gap` seconds or more before the next token
-  - once the segment is longer than `soft_max`: a comma (、,，) or a pause of `short_gap` or more
+  - once the segment is `soft_max` seconds or longer: a comma (、,，) or a pause of `short_gap` or more
   - `hard_max` seconds (a long utterance with no comma or pause)
 Fragments of `min_chars` characters or fewer are merged into the next segment, unless a pause of `gap`
 or more separates them. A segment is longer than `hard_max` only if a single token is.
