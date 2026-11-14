@@ -55,7 +55,9 @@ def test_char_as_plain_string_and_missing_times_keep_text():
     toks = [{"char": "あい", "start": 0.0, "end": 0.2}, {"char": ["う"], "start": None, "end": None}]
     assert build_segments(toks) == [{"start": 0.0, "end": 0.2, "text": "あいう"}]
     toks = [{"char": ["あ"], "start": None, "end": None}, tok("いう。", 1.0, 1.4), {"char": "え", "start": 1.5, "end": None}]
-    assert "".join(s["text"] for s in build_segments(toks)) == "あいう。え"
+    segs = build_segments(toks)
+    assert "".join(s["text"] for s in segs) == "あいう。え"
+    assert segs[0]["start"] == 1.0  # a leading token without times takes the next start
     assert build_segments([{"char": ["あ"], "start": None, "end": None}]) == []
 
 

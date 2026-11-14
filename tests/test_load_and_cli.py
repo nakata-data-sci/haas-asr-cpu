@@ -21,9 +21,11 @@ class _Hyp:
 class _Model:
     def __init__(self):
         self.calls = []
+        self.kwargs = []
 
-    def transcribe(self, chunks, batch_size, **_):
+    def transcribe(self, chunks, batch_size, **kwargs):
         self.calls.append(batch_size)
+        self.kwargs.append(kwargs)
         return [_Hyp("はい。", [("はい。", 0.1, 0.4)]) for _ in chunks]
 
 
@@ -97,3 +99,20 @@ def test_cli_prints_the_transcript_before_writing_files(monkeypatch, stub_haas, 
     with pytest.raises(OSError):
         cli.main()
     assert "はい。" in capsys.readouterr().out
+
+
+def test_segments_are_offset_per_chunk_and_clamped(monkeypatch, stub_haas, restore_process_state):
+    monkeypatch.setattr(haas_asr, "split_at_quiet_points", lambda a: [(0, 16000), (16000, 20000)])
+    model = _Model()
+    segs = t.transcribe("x.wav", model=model)
+    # chunk 2 starts at 1.0 s and ends at 1.25 s: its token at 0.1-0.4 s becomes 1.1-1.25 s
+    assert segs == [{"start": 0.1, "end": 0.4, "text": "はい。"}, {"start": 1.1, "end": 1.25, "text": "はい。"}]
+    assert model.kwargs[0]["timestamps"] is True and model.kwargs[0]["verbose"] is False
+
+
+def test_cli_rejects_zero_threads(monkeypatch, tmp_path):
+    wav = tmp_path / "a.wav"
+    wav.write_bytes(b"")
+    monkeypatch.setattr(sys, "argv", ["haas-cpu-transcribe", str(wav), "--threads", "0"])
+    with pytest.raises(SystemExit):
+        cli.main()
