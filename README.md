@@ -89,7 +89,7 @@ import haas_asr_cpu
 segments = haas_asr_cpu.transcribe("talk.wav", threads=8)
 # [{"start": 50.427, "end": 60.107, "text": "..."}, ...]
 
-# several files: load the model once (9–13 s here) and reuse it
+# several files: load the model once (9–14 s on the test machine) and reuse it
 model = haas_asr_cpu.load(threads=8)
 for path in ["a.wav", "b.wav"]:
     segments = haas_asr_cpu.transcribe(path, model=model)
