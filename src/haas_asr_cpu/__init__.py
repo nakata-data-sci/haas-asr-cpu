@@ -3,6 +3,10 @@
     import haas_asr_cpu
     segments = haas_asr_cpu.transcribe("talk.wav")
 
+    model = haas_asr_cpu.load()     # load once, reuse for several files
+    for path in paths:
+        segments = haas_asr_cpu.transcribe(path, model=model)
+
 or, to use haas_asr directly:
 
     import haas_asr_cpu
@@ -13,7 +17,8 @@ or, to use haas_asr directly:
 
 from .kda import KimiDeltaAttentionCPU, install
 from .segments import build_segments, repair_tokens
-from .transcribe import DEFAULT_MODEL, transcribe
+from .transcribe import DEFAULT_MODEL, load, transcribe
 
-__all__ = ["DEFAULT_MODEL", "KimiDeltaAttentionCPU", "build_segments", "install", "repair_tokens", "transcribe"]
+__all__ = ["DEFAULT_MODEL", "KimiDeltaAttentionCPU", "build_segments", "install", "load", "repair_tokens",
+           "transcribe"]
 __version__ = "0.1.0"

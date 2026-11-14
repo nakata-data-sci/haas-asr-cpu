@@ -71,6 +71,11 @@ import haas_asr_cpu
 
 segments = haas_asr_cpu.transcribe("talk.wav", threads=8)
 # [{"start": 50.427, "end": 60.107, "text": "..."}, ...]
+
+# several files: load the model once (about 10 s) and reuse it
+model = haas_asr_cpu.load(threads=8)
+for path in ["a.wav", "b.wav"]:
+    segments = haas_asr_cpu.transcribe(path, model=model)
 ```
 
 Or patch Haas-ASR and use its own API:

@@ -16,14 +16,11 @@ def _squash(s: str) -> str:
     return re.sub(r"\s", "", s)  # all whitespace, including U+3000, which str.strip() also removes
 
 
-def transcribe(audio_path: str, model: str = DEFAULT_MODEL, threads: int | None = None,
-               batch_size: int = 4, verbose: bool = False, nemo_logs: bool = False) -> list[dict]:
-    """Return [{"start": sec, "end": sec, "text": str}, ...] for the whole file.
+def load(model: str = DEFAULT_MODEL, threads: int | None = None, nemo_logs: bool = False):
+    """Load a Haas model for CPU (float32). Pass the result to transcribe() to reuse it across files.
 
-    The audio is cut at quiet points into chunks of about 30 s, at most 32 s (Haas's own long-form splitter); each chunk
-    is decoded with token timestamps, and the tokens are grouped into sentences (see segments.py).
-    verbose prints progress to stderr. Unless nemo_logs=True, NeMo's logger (process-wide) is set to ERROR,
-    since NeMo writes its INFO logs to stdout.
+    Unless nemo_logs=True, NeMo's logger (process-wide) is set to ERROR, since NeMo writes its INFO logs
+    to stdout.
     """
     import torch
 
@@ -33,13 +30,33 @@ def transcribe(audio_path: str, model: str = DEFAULT_MODEL, threads: int | None 
     if not nemo_logs:
         from nemo.utils import logging as nemo_logging
 
-        nemo_logging.setLevel(nemo_logging.ERROR)  # NeMo logs to stdout; keep it for the transcript
+        nemo_logging.setLevel(nemo_logging.ERROR)
     import haas_asr
 
-    t0 = time.monotonic()
-    asr = haas_asr.load_model(model, device="cpu")  # float32 on CPU
+    return haas_asr.load_model(model, device="cpu")
+
+
+def transcribe(audio_path: str, model=DEFAULT_MODEL, threads: int | None = None,
+               batch_size: int = 4, verbose: bool = False, nemo_logs: bool = False) -> list[dict]:
+    """Return [{"start": sec, "end": sec, "text": str}, ...] for the whole file.
+
+    model is a model name (loaded with load()) or a model already returned by load().
+    The audio is cut at quiet points into chunks of about 30 s, at most 32 s (Haas's own long-form splitter);
+    each chunk is decoded with token timestamps, and the tokens are grouped into sentences (see segments.py).
+    verbose prints progress to stderr. threads and nemo_logs are as in load().
+    """
+    import torch
+
     log = (lambda m: print(f"[haas-asr-cpu] {m}", file=sys.stderr)) if verbose else (lambda m: None)
-    log(f"model loaded in {time.monotonic() - t0:.1f} s")
+    t0 = time.monotonic()
+    if isinstance(model, str):
+        asr = load(model, threads=threads, nemo_logs=nemo_logs)
+        log(f"model loaded in {time.monotonic() - t0:.1f} s")
+    else:
+        asr = model
+        if threads:
+            torch.set_num_threads(threads)
+    import haas_asr
 
     audio = haas_asr.load_audio(str(audio_path))
     sr = haas_asr.SAMPLE_RATE
