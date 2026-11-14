@@ -27,14 +27,19 @@ def test_empty_text():
 
 
 def test_model_given_as_path_is_loaded(monkeypatch):
+    import importlib
     from pathlib import Path
 
-    import haas_asr_cpu.transcribe as t
+    import pytest
 
+    t = importlib.import_module("haas_asr_cpu.transcribe")  # the package attribute is the function
     seen = []
-    monkeypatch.setattr(t, "load", lambda m, **k: seen.append(m) or (_ for _ in ()).throw(RuntimeError("stop")))
-    try:
+
+    def fake_load(m, **_):
+        seen.append(m)
+        raise RuntimeError("stop")
+
+    monkeypatch.setattr(t, "load", fake_load)
+    with pytest.raises(RuntimeError):
         t.transcribe("x.wav", model=Path("m.nemo"))
-    except RuntimeError:
-        pass
     assert seen == ["m.nemo"]
