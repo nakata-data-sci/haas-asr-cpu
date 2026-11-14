@@ -124,8 +124,10 @@ model = haas_asr.load_model("third-intelligence/Haas-ja-v1.0", device="cpu")
 layer. The prediction network runs one token at a time during decoding, so a plain loop is fast enough:
 the real-time factor matches Parakeet-ja, which has the same architecture with an LSTM.
 
-The tests check the layer against fla's own reference implementations, loaded as files so that fla's
-Triton code is never imported:
+The tests check the recurrence against fla's own reference implementations (loaded as files so that
+fla's Triton code is never imported), and the whole layer for consistency. The other parts (gate,
+L2 norm, short convolution, gated norm) follow the fla code listed above but are not compared with fla in
+the tests:
 
 - the recurrence equals `naive_recurrent_kda` and also `naive_chunk_kda` (a different, chunk-parallel
   algorithm);
@@ -197,7 +199,7 @@ This is an unofficial project, not affiliated with Third Intelligence.
 - **精度**: 日本語の TEDx 講演 5 本(計 42 分)で、表記ゆれとフィラーの差を除いたかな CER が 5.82%。
   同じ CPU の Whisper large-v3(3 回の実行で 7.00〜7.62%)と Parakeet-ja(8.49%)より低い値でした(上の表)。
 - **速さ**: 推論の実時間比 0.030(42 分を 76 秒)。推論は Whisper large-v3 の約 14 倍の速さです(読み込みを含めると約 7 倍)。
-- **確かめ方**: flash-linear-attention 自身の参照実装 2 種と出力が一致することを、テストで確かめています。
+- **確かめ方**: 中心の再帰計算が flash-linear-attention 自身の参照実装 2 種と一致することと、層全体で 1 トークンずつ流した結果 = 一括の結果になることを、テストで確かめています。
 - **未確認**: GPU 版(bfloat16)との出力の突き合わせ、macOS・Windows での動作。
 
 ```bash

@@ -24,3 +24,17 @@ def test_mismatch_falls_back_to_one_chunk_segment():
 
 def test_empty_text():
     assert chunk_segments("  ", {"char": []}, 0.0, 1.0) == ([], True)
+
+
+def test_model_given_as_path_is_loaded(monkeypatch):
+    from pathlib import Path
+
+    import haas_asr_cpu.transcribe as t
+
+    seen = []
+    monkeypatch.setattr(t, "load", lambda m, **k: seen.append(m) or (_ for _ in ()).throw(RuntimeError("stop")))
+    try:
+        t.transcribe("x.wav", model=Path("m.nemo"))
+    except RuntimeError:
+        pass
+    assert seen == ["m.nemo"]

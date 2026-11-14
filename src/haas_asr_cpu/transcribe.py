@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 import time
@@ -40,7 +41,7 @@ def transcribe(audio_path: str, model=DEFAULT_MODEL, threads: int | None = None,
                batch_size: int = 4, verbose: bool = False, nemo_logs: bool = False) -> list[dict]:
     """Return [{"start": sec, "end": sec, "text": str}, ...] for the whole file.
 
-    model is a model name (loaded with load()) or a model already returned by load().
+    model is a model name or path (loaded with load()) or a model already returned by load().
     The audio is cut at quiet points into chunks of about 30 s, at most 32 s (Haas's own long-form splitter);
     each chunk is decoded with token timestamps, and the tokens are grouped into sentences (see segments.py).
     verbose prints progress to stderr. threads and nemo_logs are as in load().
@@ -49,8 +50,8 @@ def transcribe(audio_path: str, model=DEFAULT_MODEL, threads: int | None = None,
 
     log = (lambda m: print(f"[haas-asr-cpu] {m}", file=sys.stderr)) if verbose else (lambda m: None)
     t0 = time.monotonic()
-    if isinstance(model, str):
-        asr = load(model, threads=threads, nemo_logs=nemo_logs)
+    if isinstance(model, (str, os.PathLike)):
+        asr = load(str(model), threads=threads, nemo_logs=nemo_logs)
         log(f"model loaded in {time.monotonic() - t0:.1f} s")
     else:
         asr = model

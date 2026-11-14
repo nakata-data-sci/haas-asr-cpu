@@ -36,6 +36,8 @@ def main() -> None:
     # fail before the model is loaded and the (long) transcription runs, not after
     if not args.audio.is_file():
         ap.error(f"audio file not found: {args.audio}")
+    if args.batch_size < 1 or (args.threads is not None and args.threads < 1):
+        ap.error("--batch-size and --threads must be positive")
     for out in (args.json, args.srt):
         if out is None:
             continue
