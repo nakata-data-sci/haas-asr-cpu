@@ -158,7 +158,7 @@ speech at the very start of a chunk followed by a pause is moved too.
 
 On a 477-second talk this gives 62 segments (median 4.1 s, longest 15.4 s) instead of 16. Matched to the
 human subtitle cue that starts with the same text, segments start a median 0.5 s earlier on that talk;
-on the other four talks the median difference is within ±0.3 s.
+on the other four talks the median difference is about 0.3 s or less (depending on how cues are matched).
 
 Rare kanji such as 兎 are encoded as several SentencePiece byte-fallback tokens, each decoding to U+FFFD.
 `repair_tokens` aligns the tokens with the full hypothesis text and restores the characters. If the tokens
