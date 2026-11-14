@@ -27,14 +27,18 @@ def load(model: str = DEFAULT_MODEL, threads: int | None = None, nemo_logs: bool
 
     if threads:
         torch.set_num_threads(threads)
-    if not nemo_logs:  # before install(), which imports NeMo's ASR collection
-        from nemo.utils import logging as nemo_logging
-
-        nemo_logging.setLevel(nemo_logging.ERROR)
+    _quiet_nemo(nemo_logs)
     install()
     import haas_asr
 
     return haas_asr.load_model(model, device="cpu")
+
+
+def _quiet_nemo(nemo_logs: bool) -> None:
+    if not nemo_logs:  # before anything imports haas_asr, which imports NeMo's ASR collection
+        from nemo.utils import logging as nemo_logging
+
+        nemo_logging.setLevel(nemo_logging.ERROR)
 
 
 def transcribe(audio_path: str, model=DEFAULT_MODEL, threads: int | None = None,
@@ -42,13 +46,17 @@ def transcribe(audio_path: str, model=DEFAULT_MODEL, threads: int | None = None,
     """Return [{"start": sec, "end": sec, "text": str}, ...] for the whole file.
 
     model is a model name or path (loaded with load()) or a model already returned by load().
-    The audio is cut at quiet points into chunks of about 30 s, at most 32 s (Haas's own long-form splitter);
+    The audio is cut at quiet points into chunks of about 30 s, up to about 32 s (Haas's own long-form splitter);
     each chunk is decoded with token timestamps, and the tokens are grouped into sentences (see segments.py).
     verbose prints progress to stderr. threads and nemo_logs are as in load().
     """
     import torch
 
     log = (lambda m: print(f"[haas-asr-cpu] {m}", file=sys.stderr)) if verbose else (lambda m: None)
+    _quiet_nemo(nemo_logs)
+    import haas_asr
+
+    audio = haas_asr.load_audio(str(audio_path))  # before loading the model, so a bad file fails fast
     t0 = time.monotonic()
     if isinstance(model, (str, os.PathLike)):
         asr = load(str(model), threads=threads, nemo_logs=nemo_logs)
@@ -57,9 +65,6 @@ def transcribe(audio_path: str, model=DEFAULT_MODEL, threads: int | None = None,
         asr = model
         if threads:
             torch.set_num_threads(threads)
-    import haas_asr
-
-    audio = haas_asr.load_audio(str(audio_path))
     sr = haas_asr.SAMPLE_RATE
     bounds = haas_asr.split_at_quiet_points(audio)
     chunks = [audio[s:e] for s, e in bounds]

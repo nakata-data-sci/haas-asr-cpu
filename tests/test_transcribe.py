@@ -39,7 +39,23 @@ def test_model_given_as_path_is_loaded(monkeypatch):
         seen.append(m)
         raise RuntimeError("stop")
 
+    import haas_asr
+
+    monkeypatch.setattr(haas_asr, "load_audio", lambda *_: [0.0] * 16000)
     monkeypatch.setattr(t, "load", fake_load)
     with pytest.raises(RuntimeError):
         t.transcribe("x.wav", model=Path("m.nemo"))
     assert seen == ["m.nemo"]
+
+
+def test_bad_audio_fails_before_the_model_is_loaded(monkeypatch, tmp_path):
+    import importlib
+
+    import pytest
+
+    t = importlib.import_module("haas_asr_cpu.transcribe")
+    monkeypatch.setattr(t, "load", lambda *a, **k: pytest.fail("model loaded before reading the audio"))
+    bad = tmp_path / "empty.wav"
+    bad.write_bytes(b"")
+    with pytest.raises(Exception):
+        t.transcribe(str(bad))

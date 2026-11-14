@@ -46,7 +46,9 @@ def test_long_utterance_splits_at_short_pause_after_soft_max():
 
 def test_hard_max_without_any_break():
     toks = [tok("あ", i * 0.5, i * 0.5 + 0.5) for i in range(100)]
-    assert all(s["end"] - s["start"] <= 20 for s in build_segments(toks))
+    segs = build_segments(toks)
+    assert "".join(s["text"] for s in segs) == "あ" * 100 and len(segs) >= 3
+    assert all(s["end"] - s["start"] <= 20 for s in segs)
 
 
 def test_char_as_plain_string_and_missing_times_keep_text():
@@ -119,3 +121,8 @@ def test_token_with_end_but_no_start_keeps_its_text_and_time():
     toks = [{"char": ["あの"], "start": None, "end": 0.5}, tok("今日は晴れ。", 1.0, 1.8)]
     segs = build_segments(toks)
     assert segs[0]["start"] == 0.5 and "".join(s["text"] for s in segs) == "あの今日は晴れ。"
+
+
+def test_first_token_closing_a_clause_stays():
+    toks = [tok("でも、", 0.0, 0.3), tok("今日は", 2.0, 2.5), tok("晴れ。", 2.5, 3.0)]
+    assert build_segments(toks)[0]["start"] == 0.0

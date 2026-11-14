@@ -35,7 +35,7 @@ Time for the 42 minutes, with the model loaded again for each file:
   differences such as 有る/ある are not counted as errors.
 - **fillers excluded** does not count fillers (あの, えー, …) that a model added but the subtitles omit.
   On two of the five talks Haas wrote many fillers; Whisper and Parakeet wrote almost none.
-- Per talk, Haas was best on two talks in every run. On one talk the winner against Whisper changed between
+- Per talk (kana CER, fillers excluded), Haas was best on two talks in every run. On one talk the winner against Whisper changed between
   Whisper runs, Whisper was slightly better on another (8.45% vs 8.59%) and Parakeet on the last
   (7.40% vs 8.11%).
 - Whisper's results changed between identical runs on two of the five talks (for example 5.31%, 10.27%
