@@ -172,10 +172,10 @@ def test_layer_scales_queries_by_head_dim_as_fla(monkeypatch):
     seen = []
     real = kda.recurrent_kda
     monkeypatch.setattr(kda, "recurrent_kda", lambda *a, scale, **k: seen.append(scale) or real(*a, scale=scale, **k))
-    layer = KimiDeltaAttentionCPU(hidden_size=64, head_dim=16, num_heads=4)
+    layer = KimiDeltaAttentionCPU(hidden_size=64, head_dim=16, num_heads=4, expand_v=2)  # head_v_dim = 32
     with torch.no_grad():
         layer(torch.randn(1, 3, 64))
-    assert seen == [16 ** -0.5]  # fla's default scale is head_k_dim ** -0.5
+    assert seen == [16 ** -0.5]  # fla's default scale is head_k_dim ** -0.5, not head_v_dim
 
 
 def test_parameter_names_and_shapes_match_the_released_checkpoint():
