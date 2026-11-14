@@ -52,7 +52,8 @@ This is one machine and five talks of one genre, not a benchmark. The official r
 
 ## Install
 
-Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/). uv is needed, not just recommended: the
+Requires Python 3.11 or 3.12 (tested with 3.12, which `.python-version` selects) and [uv](https://docs.astral.sh/uv/).
+Several NeMo dependencies have no wheels for Python 3.13+, so newer versions are excluded. uv is needed, not just recommended: the
 CPU-only PyTorch index and the same dependency settings as Haas-ASR (overrides to versions with security
 fixes, bytecode compiled at install) are uv settings in `pyproject.toml`. A plain `pip install` does not
 apply them, and pulls the CUDA build of PyTorch on Linux.
@@ -169,9 +170,10 @@ still do not match the text, that chunk falls back to one chunk-level segment.
 - **Not compared with the GPU version.** The official numbers are measured in bfloat16 on NVIDIA GPUs;
   this runs in float32 on CPU, so transcripts may differ slightly. A side-by-side check on a GPU has not
   been done yet.
-- **Tested on Linux (WSL2) only.** Windows (x64, ARM64) and macOS on Apple Silicon with macOS 14 or later
-  have PyTorch wheels for the locked version and should work, but are untested. Intel Macs and macOS 13
-  or earlier cannot install: PyTorch 2.15 has no wheels for them, so `uv sync` fails.
+- **Tested on Linux (WSL2) only.** With Python 3.12, Windows x64 and macOS 14+ on Apple Silicon have
+  wheels for every compiled dependency in `uv.lock` and should work, but are untested. Intel Macs and
+  macOS 13 or earlier cannot install (PyTorch 2.15 has no wheels for them), nor can Windows on ARM
+  (several compiled dependencies, such as kaldialign and pyarrow, have no wheels for it).
 - **Process-wide effects.** `load()` calls `install()`, which replaces `haas_asr.prednet.load_kda_class`
   for the rest of the process (a later `haas_asr.load_model(..., device="cuda")` would also get the CPU
   layer). `threads` sets `torch.set_num_threads` for the process. Unless `nemo_logs=True`, NeMo's logger is
