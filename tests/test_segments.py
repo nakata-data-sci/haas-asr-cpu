@@ -153,6 +153,14 @@ def test_thresholds_hold_for_frame_times_anywhere_in_a_chunk():
         # a pause of exactly 10 frames = 0.8 s closes the segment wherever it falls
         toks = [tok("今日は", f(n - 3), f(n)), tok("晴れです", f(n + 10), f(n + 13))]
         assert [s["text"] for s in build_segments(toks)] == ["今日は", "晴れです"], n
-        # 250 frames = 20 s reaches hard_max
+        # 250 frames = 20 s reaches hard_max: the first segment is exactly 20 s, not cut a frame early
         long = [tok("あ", f(n + i), f(n + i + 1)) for i in range(251)]
-        assert max(s["end"] - s["start"] for s in build_segments(long)) <= 20.0 + 1e-9, n
+        first = build_segments(long)[0]
+        assert round(first["end"] - first["start"], 6) == 20.0, n
+        # 100 frames = 8 s reaches soft_max: a following 0.32 s pause (> short_gap) closes the segment
+        soft = [tok("あ", f(n + i), f(n + i + 1)) for i in range(100)] + [tok("いい", f(n + 104), f(n + 106))]
+        assert len(build_segments(soft)) == 2, n
+    for k in range(1, 400):
+        # frame-0 heuristic: a first token at 0.0 followed by exactly 0.8 s moves to the next token
+        toks = [tok("あの", 0.0, f(k)), tok("今日は", f(k + 10), f(k + 13))]
+        assert build_segments(toks)[0]["start"] == round(f(k + 10), 3), k
