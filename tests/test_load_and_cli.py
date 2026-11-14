@@ -122,3 +122,15 @@ def test_transcribe_passes_nemo_logs_on_to_load(stub_haas, restore_process_state
     nemo_logging.setLevel(nemo_logging.INFO)
     t.transcribe("x.wav", model="m", nemo_logs=True)
     assert nemo_logging.getEffectiveLevel() == nemo_logging.INFO
+
+
+def test_load_installs_before_loading_the_model(monkeypatch, restore_process_state):
+    import haas_asr.prednet as prednet
+
+    from haas_asr_cpu.kda import KimiDeltaAttentionCPU
+
+    monkeypatch.setattr(prednet, "load_kda_class", lambda: "fla")
+    seen = []
+    monkeypatch.setattr(haas_asr, "load_model", lambda name, device: seen.append(prednet.load_kda_class()) or _Model())
+    t.load("m")
+    assert seen == [KimiDeltaAttentionCPU]

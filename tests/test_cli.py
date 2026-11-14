@@ -32,3 +32,8 @@ def test_writes_json_and_srt(monkeypatch, tmp_path, capsys):
     assert "兎𠮷。" in capsys.readouterr().out
     assert (tmp_path / "o.srt").read_text(encoding="utf-8") == "1\n00:00:00,000 --> 00:00:01,500\n兎𠮷。\n\n"
     assert '"兎𠮷。"' in (tmp_path / "o.json").read_text(encoding="utf-8")
+
+
+def test_timestamps_over_a_minute_and_an_hour():
+    assert cli._ts(3725.5) == "01:02:05.500" and cli._ts(59.9996) == "00:01:00.000"
+    assert cli.to_srt([{"start": 61.25, "end": 3725.5, "text": "あ"}]) == "1\n00:01:01,250 --> 01:02:05,500\nあ\n\n"

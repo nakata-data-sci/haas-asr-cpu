@@ -176,3 +176,16 @@ def test_layer_scales_queries_by_head_dim_as_fla(monkeypatch):
     with torch.no_grad():
         layer(torch.randn(1, 3, 64))
     assert seen == [16 ** -0.5]  # fla's default scale is head_k_dim ** -0.5
+
+
+def test_parameter_names_and_shapes_match_the_released_checkpoint():
+    # Haas-ja-v1.0's prediction network layer: hidden 640, 5 heads of 64, conv 4 (names as in fla 0.5.2)
+    layer = KimiDeltaAttentionCPU(hidden_size=640, head_dim=64, num_heads=5, conv_size=4)
+    assert {k: tuple(v.shape) for k, v in layer.state_dict().items()} == {
+        "A_log": (5,), "dt_bias": (320,), "b_proj.weight": (5, 640),
+        "q_proj.weight": (320, 640), "k_proj.weight": (320, 640), "v_proj.weight": (320, 640),
+        "q_conv1d.weight": (320, 1, 4), "k_conv1d.weight": (320, 1, 4), "v_conv1d.weight": (320, 1, 4),
+        "f_proj.0.weight": (64, 640), "f_proj.1.weight": (320, 64),
+        "g_proj.0.weight": (64, 640), "g_proj.1.weight": (320, 64), "g_proj.1.bias": (320,),
+        "o_norm.weight": (64,), "o_proj.weight": (640, 320),
+    }
