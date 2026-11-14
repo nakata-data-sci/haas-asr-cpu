@@ -87,8 +87,9 @@ def test_full_width_marks_close_segments():
     toks = [tok("本当", 0.0, 0.4), tok("？", 0.4, 0.5), tok("はい", 0.6, 0.9), tok("！", 0.9, 1.0),
             tok("では", 1.1, 1.4)]
     assert [s["text"] for s in build_segments(toks)] == ["本当？", "はい！", "では"]
-    long = [tok("あ", i * 0.5, i * 0.5 + 0.5) for i in range(17)] + [tok("，", 8.5, 8.6), tok("いい", 8.6, 9.0)]
-    assert [s["text"][-1] for s in build_segments(long)] == ["，", "い"]
+    for comma in ("，", "、"):
+        long = [tok("あ", i * 0.5, i * 0.5 + 0.5) for i in range(17)] + [tok(comma, 8.5, 8.6), tok("いい", 8.6, 9.0)]
+        assert [s["text"][-1] for s in build_segments(long)] == [comma, "い"]
 
 
 def test_repair_keeps_spaces_between_words():
