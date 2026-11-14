@@ -1,0 +1,52 @@
+[project]
+name = "haas-asr-cpu"
+version = "0.1.0"
+description = "Run the Haas-ja speech recognition model on CPU: a pure-PyTorch Kimi Delta Attention in place of the Triton/CUDA kernels"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+requires-python = ">=3.11"
+dependencies = [
+    # Pinned to the Haas-ASR commit this was tested with (2026-10-30). It requires NeMo 2.7.x.
+    "haas-asr @ git+https://github.com/third-intelligence/Haas-ASR.git@acc614f",
+    "torch",
+    "einops",
+]
+keywords = ["asr", "speech-recognition", "japanese", "nemo", "cpu", "haas"]
+
+[project.scripts]
+haas-cpu-transcribe = "haas_asr_cpu.cli:main"
+
+[project.urls]
+Repository = "https://github.com/nakata-data-sci/haas-asr-cpu"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/haas_asr_cpu"]
+
+[tool.uv]
+# Same overrides as Haas-ASR's own pyproject (needed for NeMo 2.7.3 to import).
+override-dependencies = [
+    "fsspec[http]>=2026.6.0",
+    "hydra-core>=1.3.8",
+    "packaging>=26.3",
+    "transformers>=5.10.0",
+]
+
+# CPU-only PyTorch wheels on Linux and Windows (macOS wheels on PyPI are already CPU/MPS).
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform != 'darwin'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
