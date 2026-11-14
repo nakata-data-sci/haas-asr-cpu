@@ -164,3 +164,20 @@ def test_thresholds_hold_for_frame_times_anywhere_in_a_chunk():
         # frame-0 heuristic: a first token at 0.0 followed by exactly 0.8 s moves to the next token
         toks = [tok("あの", 0.0, f(k)), tok("今日は", f(k + 10), f(k + 13))]
         assert build_segments(toks)[0]["start"] == round(f(k + 10), 3), k
+
+
+def test_comma_before_soft_max_does_not_split():
+    toks = [tok("今日は", 0.1, 0.5), tok("、", 0.5, 0.5), tok("晴れです。", 0.6, 1.2)]
+    assert [s["text"] for s in build_segments(toks)] == ["今日は、晴れです。"]
+
+
+def test_comma_and_short_gap_at_exact_thresholds():
+    f = lambda n: n * 0.01 * 8
+    for n in range(4, 404):
+        # a comma token ending exactly 100 frames (8 s) after the segment start closes it
+        toks = [tok("あ", f(n + i), f(n + i + 1)) for i in range(99)] + [tok("、", f(n + 99), f(n + 100)),
+                                                                          tok("いい", f(n + 100), f(n + 102))]
+        assert len(build_segments(toks)) == 2, n
+    # after 8 s, a pause of exactly short_gap (0.3 s) closes the segment
+    toks = [tok("あ", i * 0.5, i * 0.5 + 0.5) for i in range(17)] + [tok("いい", 8.8, 9.0)]
+    assert len(build_segments(toks)) == 2

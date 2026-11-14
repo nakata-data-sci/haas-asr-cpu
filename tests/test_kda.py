@@ -141,3 +141,26 @@ def test_expand_v_tolerance_as_fla():
     assert KimiDeltaAttentionCPU(hidden_size=64, head_dim=100, num_heads=1, expand_v=0.0700001).head_v_dim == 7
     with pytest.raises(ValueError):  # 15 * 0.5 = 7.5 is not an integer
         KimiDeltaAttentionCPU(hidden_size=64, head_dim=15, num_heads=1, expand_v=0.5)
+
+
+def test_recurrent_matches_fla_with_grouped_value_heads(naive):
+    g = torch.Generator().manual_seed(1)
+    B, T, H, HV, K, V = 2, 32, 2, 4, 16, 16
+    q = F.normalize(torch.randn(B, T, H, K, generator=g), dim=-1)
+    k = F.normalize(torch.randn(B, T, H, K, generator=g), dim=-1)
+    v = torch.randn(B, T, HV, V, generator=g)
+    gate = -F.softplus(torch.randn(B, T, HV, K, generator=g))
+    beta = torch.rand(B, T, HV, generator=g)
+    o_ref, s_ref = naive.naive_recurrent_kda(q, k, v, gate, beta, output_final_state=True)
+    o, s = recurrent_kda(q, k, v, gate, beta, scale=K ** -0.5)
+    torch.testing.assert_close(o, o_ref, rtol=1e-5, atol=1e-5)
+    torch.testing.assert_close(s, s_ref, rtol=1e-5, atol=1e-5)
+
+
+def test_install_makes_haas_build_the_cpu_layer():
+    import haas_asr.prednet as prednet
+
+    from haas_asr_cpu.kda import install
+
+    install()
+    assert prednet.load_kda_class() is KimiDeltaAttentionCPU
