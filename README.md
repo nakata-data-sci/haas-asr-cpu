@@ -61,6 +61,9 @@ uv run haas-cpu-transcribe talk.wav --json talk.json --srt talk.srt --threads 8
 [00:00:50.427 --> 00:01:00.107] 私の家では…
 ```
 
+The transcript goes to stdout and progress to stderr (`-q` silences it). NeMo's own log lines are
+suppressed; pass `nemo_logs=True` to `transcribe()` to keep them.
+
 Python:
 
 ```python

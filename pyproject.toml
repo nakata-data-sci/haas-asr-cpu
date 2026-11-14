@@ -10,7 +10,6 @@ dependencies = [
     # Pinned to the Haas-ASR commit this was tested with (2026-10-30). It requires NeMo 2.7.x.
     "haas-asr @ git+https://github.com/third-intelligence/Haas-ASR.git@acc614f",
     "torch",
-    "einops",
 ]
 keywords = ["asr", "speech-recognition", "japanese", "nemo", "cpu", "haas"]
 

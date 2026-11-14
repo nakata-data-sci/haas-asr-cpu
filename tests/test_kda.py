@@ -128,3 +128,7 @@ def test_no_state_kept_without_use_cache():
     with torch.no_grad():
         layer(torch.randn(1, 3, 64), past_key_values=cache, use_cache=False)
     assert cache[0]["recurrent_state"] is None and cache[0]["conv_state"] is None
+
+
+def test_expand_v_tolerance_as_fla():
+    assert KimiDeltaAttentionCPU(hidden_size=64, head_dim=100, num_heads=1, expand_v=0.07).head_v_dim == 7

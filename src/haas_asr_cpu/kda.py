@@ -16,6 +16,8 @@ layer (Haas's prediction network only reshapes and carries it), so the results a
 
 from __future__ import annotations
 
+import math
+
 import torch
 import torch.nn.functional as F
 from torch import nn
@@ -102,7 +104,7 @@ class KimiDeltaAttentionCPU(nn.Module):
             raise ValueError(f"mode must be 'chunk' or 'fused_recurrent', got {mode!r}")  # as fla
         if num_v_heads is not None and num_v_heads % num_heads != 0:
             raise ValueError(f"num_v_heads ({num_v_heads}) must be a multiple of num_heads ({num_heads})")
-        if not float(head_dim * expand_v).is_integer():
+        if not math.isclose(head_dim * expand_v, int(head_dim * expand_v), rel_tol=1e-5):  # as fla
             raise ValueError(f"head_dim * expand_v ({head_dim * expand_v}) must be an integer")
         self.mode = mode
         self.hidden_size = hidden_size

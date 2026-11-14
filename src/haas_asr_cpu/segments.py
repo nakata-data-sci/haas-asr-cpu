@@ -45,9 +45,13 @@ def repair_tokens(tokens: list[dict], text: str) -> list[dict] | None:
             out.append({**tokens[i], "char": text[p0:pos] if stripped else ""})
             i += 1
             continue
-        j = i  # tokens [i, j) contain U+FFFD
-        while j < len(tokens) and BAD in _text(tokens[j]):
+        # tokens [i, j) are U+FFFD tokens, possibly with blank tokens between them
+        j, last_bad = i, i
+        while j < len(tokens) and (BAD in _text(tokens[j]) or not _text(tokens[j]).strip()):
+            if BAD in _text(tokens[j]):
+                last_bad = j
             j += 1
+        j = last_bad + 1  # trailing blank tokens are handled as ordinary tokens
         k = j  # the next token with visible text bounds the replacement
         while k < len(tokens) and not _text(tokens[k]).strip():
             k += 1
@@ -70,9 +74,11 @@ def _fill_times(tokens: list[dict]) -> list[dict]:
     """Keep every token with text. A missing start or end is taken from the neighbouring tokens."""
     toks = [dict(t) for t in tokens if _text(t).strip()]
     prev = None
-    for t in toks:  # forward: a missing start follows the previous token
-        if t.get("start") is None and prev is not None:
-            t["start"] = prev
+    for t in toks:  # forward: a missing start follows the previous token (or the token's own end)
+        if t.get("start") is None:
+            t["start"] = prev if prev is not None else t.get("end")
+            if t["start"] is not None and t.get("end") is not None:
+                t["start"] = min(t["start"], t["end"])
         if t.get("end") is None and t.get("start") is not None:
             t["end"] = t["start"]
         if t.get("end") is not None:

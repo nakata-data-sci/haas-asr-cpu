@@ -103,3 +103,19 @@ def test_repair_byte_fallback_followed_by_blank_token():
 def test_first_token_closing_a_sentence_stays():
     toks = [tok("はい。", 0.0, 0.3), tok("今日は", 2.0, 2.5), tok("晴れ。", 2.5, 3.0)]
     assert build_segments(toks)[0] == {"start": 0.0, "end": 0.3, "text": "はい。"}
+
+
+def test_repair_two_byte_fallback_runs_with_blank_between():
+    toks = [tok("�", 0.1, 0.2), tok("�", 0.2, 0.3), tok("�", 0.3, 0.4), tok("", 0.4, 0.4),
+            tok("�", 0.5, 0.6), tok("�", 0.6, 0.7), tok("�", 0.7, 0.8), tok("に", 0.8, 0.9)]
+    fixed = repair_tokens(toks, "兎鹿に")
+    assert "".join(t["char"] for t in fixed) == "兎鹿に"
+    assert build_segments(fixed) == [{"start": 0.1, "end": 0.9, "text": "兎鹿に"}]
+
+
+def test_token_with_end_but_no_start_keeps_its_text_and_time():
+    assert build_segments([{"char": ["あいう"], "start": None, "end": 2.2}]) == [
+        {"start": 2.2, "end": 2.2, "text": "あいう"}]
+    toks = [{"char": ["あの"], "start": None, "end": 0.5}, tok("今日は晴れ。", 1.0, 1.8)]
+    segs = build_segments(toks)
+    assert segs[0]["start"] == 0.5 and "".join(s["text"] for s in segs) == "あの今日は晴れ。"
