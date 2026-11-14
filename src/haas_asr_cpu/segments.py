@@ -6,7 +6,8 @@ comes back as one segment per audio chunk. Here tokens are added one by one and 
   - a pause of `gap` seconds or more before the next token
   - once the segment is longer than `soft_max`: a comma (、,，) or a pause of `short_gap` or more
   - `hard_max` seconds (a long utterance with no comma or pause)
-Fragments of `min_chars` characters or fewer are merged into the next segment.
+Fragments of `min_chars` characters or fewer are merged into the next segment, unless a pause of `gap`
+or more separates them. A segment is longer than `hard_max` only if a single token is.
 
 Rare kanji (e.g. 兎) are split into several byte-fallback tokens by SentencePiece, and each one decodes to
 U+FFFD. `repair_tokens` aligns the tokens with the hypothesis text (h.text) and restores those characters.
@@ -36,7 +37,7 @@ def repair_tokens(tokens: list[dict], text: str) -> list[dict] | None:
         if BAD not in t:
             stripped = t.strip()
             p0 = pos  # spaces skipped here stay with this token, so "TEDx Kyoto" keeps its space
-            while pos < len(text) and text[pos] == " " and not text.startswith(stripped, pos):
+            while pos < len(text) and text[pos] in " \u3000" and not text.startswith(stripped, pos):
                 pos += 1
             if stripped and not text.startswith(stripped, pos):
                 return None
@@ -65,6 +66,26 @@ def repair_tokens(tokens: list[dict], text: str) -> list[dict] | None:
     return out
 
 
+def _fill_times(tokens: list[dict]) -> list[dict]:
+    """Keep every token with text. A missing start or end is taken from the neighbouring tokens."""
+    toks = [dict(t) for t in tokens if _text(t).strip()]
+    prev = None
+    for t in toks:  # forward: a missing start follows the previous token
+        if t.get("start") is None and prev is not None:
+            t["start"] = prev
+        if t.get("end") is None and t.get("start") is not None:
+            t["end"] = t["start"]
+        if t.get("end") is not None:
+            prev = t["end"]
+    nxt = None
+    for t in reversed(toks):  # backward: leading tokens without times take the next start
+        if t.get("start") is None and nxt is not None:
+            t["start"] = t["end"] = nxt
+        if t.get("start") is not None:
+            nxt = t["start"]
+    return [t for t in toks if t.get("start") is not None]  # empty only if no token has a time
+
+
 def build_segments(tokens: list[dict], offset: float = 0.0, gap: float = 0.8, short_gap: float = 0.3,
                    soft_max: float = 8.0, hard_max: float = 20.0, min_chars: int = 2) -> list[dict]:
     """tokens: [{"char": [str] | str, "start": sec, "end": sec}, ...] relative to the chunk; offset = chunk start."""
@@ -82,10 +103,12 @@ def build_segments(tokens: list[dict], offset: float = 0.0, gap: float = 0.8, sh
                     "end": round(offset + cur[-1][2], 3), "text": text})
         cur.clear()
 
-    timed = [t for t in tokens if _text(t).strip() and t.get("start") is not None]
-    # TDT sometimes emits the first token of a chunk at frame 0 although its sound comes much later
-    # (seen: "こ" at 0.0 s, "んにちは" from 16.4 s). Move such a token to just before the next one.
-    # A token that closes a sentence or clause on its own (e.g. "はい。") is left where it is.
+    timed = _fill_times(tokens)
+    # Heuristic: TDT sometimes emits the first token of a chunk at frame 0 although its sound comes much
+    # later (seen: "こ" at 0.0 s, "んにちは" from 16.4 s). Such a token is moved to just before the next one.
+    # A token that closes a sentence or clause on its own (e.g. "はい。") is left where it is. Real speech
+    # at the very start of a chunk followed by a pause would be moved too; chunks are cut at quiet points,
+    # so this is rare.
     if (len(timed) > 1 and float(timed[0]["start"]) == 0.0
             and float(timed[1]["start"]) - float(timed[0]["end"]) >= gap
             and not _text(timed[0]).strip().endswith(SENTENCE_END + CLAUSE_END)):
@@ -97,7 +120,9 @@ def build_segments(tokens: list[dict], offset: float = 0.0, gap: float = 0.8, sh
         if cur:
             pause = start - cur[-1][2]
             long_enough = cur[-1][2] - cur[0][1] >= soft_max
-            if pause >= gap or (long_enough and pause >= short_gap):
+            if pause >= gap or end - cur[0][1] > hard_max:
+                flush(force=True)  # a short fragment is not carried across a pause or past hard_max
+            elif long_enough and pause >= short_gap:
                 flush()
         cur.append((text, start, end))
         dur = end - cur[0][1]

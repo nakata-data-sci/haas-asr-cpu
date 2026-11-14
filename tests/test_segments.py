@@ -19,9 +19,22 @@ def test_splits_on_pause():
     assert [s["text"] for s in build_segments(toks)] == ["あいうえ", "おか"]
 
 
-def test_short_fragment_joins_next():
+def test_short_fragment_joins_next_without_pause():
+    toks = [tok("え。", 0.5, 0.7), tok("次の", 0.9, 1.2), tok("話。", 1.2, 1.6)]
+    assert build_segments(toks) == [{"start": 0.5, "end": 1.6, "text": "え。次の話。"}]
+
+
+def test_short_fragment_stands_alone_across_pause():
     toks = [tok("私", 29.9, 30.1), tok("はこの", 33.4, 33.8), tok("缶。", 33.8, 34.2)]
-    assert build_segments(toks) == [{"start": 29.9, "end": 34.2, "text": "私はこの缶。"}]
+    assert build_segments(toks) == [{"start": 29.9, "end": 30.1, "text": "私"},
+                                    {"start": 33.4, "end": 34.2, "text": "はこの缶。"}]
+    toks = [tok("あ", 0.5, 0.6), tok("今日は", 25.0, 25.5), tok("晴れ。", 25.5, 26.0)]
+    assert [s["text"] for s in build_segments(toks)] == ["あ", "今日は晴れ。"]
+
+
+def test_hard_max_checked_before_adding_a_token():
+    toks = [tok("あ", 0.0, 19.5), tok("い", 19.6, 25.0)]
+    assert [(s["start"], s["end"]) for s in build_segments(toks)] == [(0.0, 19.5), (19.6, 25.0)]
 
 
 def test_long_utterance_splits_at_short_pause_after_soft_max():
@@ -36,9 +49,16 @@ def test_hard_max_without_any_break():
     assert all(s["end"] - s["start"] <= 20 for s in build_segments(toks))
 
 
-def test_char_as_plain_string_and_missing_start():
+def test_char_as_plain_string_and_missing_times_keep_text():
     toks = [{"char": "あい", "start": 0.0, "end": 0.2}, {"char": ["う"], "start": None, "end": None}]
-    assert build_segments(toks) == [{"start": 0.0, "end": 0.2, "text": "あい"}]
+    assert build_segments(toks) == [{"start": 0.0, "end": 0.2, "text": "あいう"}]
+    toks = [{"char": ["あ"], "start": None, "end": None}, tok("いう。", 1.0, 1.4), {"char": "え", "start": 1.5, "end": None}]
+    assert "".join(s["text"] for s in build_segments(toks)) == "あいう。え"
+    assert build_segments([{"char": ["あ"], "start": None, "end": None}]) == []
+
+
+def test_repair_skips_full_width_space():
+    assert [t["char"] for t in repair_tokens([tok("あ", 0, 1), tok("い", 1, 2)], "あ\u3000い")] == ["あ", "\u3000い"]
 
 
 def test_repair_byte_fallback_tokens():

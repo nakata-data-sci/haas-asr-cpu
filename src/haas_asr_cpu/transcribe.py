@@ -15,7 +15,7 @@ def transcribe(audio_path: str, model: str = DEFAULT_MODEL, threads: int | None 
                batch_size: int = 4, verbose: bool = False) -> list[dict]:
     """Return [{"start": sec, "end": sec, "text": str}, ...] for the whole file.
 
-    The audio is cut into chunks of up to 30 s at quiet points (Haas's own long-form splitter), each chunk
+    The audio is cut at quiet points into chunks of about 30 s, at most 32 s (Haas's own long-form splitter); each chunk
     is decoded with token timestamps, and the tokens are grouped into sentences (see segments.py).
     With verbose=False, NeMo's logger (process-wide) is set to ERROR, since NeMo logs to stdout.
     """
@@ -39,6 +39,8 @@ def transcribe(audio_path: str, model: str = DEFAULT_MODEL, threads: int | None 
     sr = haas_asr.SAMPLE_RATE
     bounds = haas_asr.split_at_quiet_points(audio)
     chunks = [audio[s:e] for s, e in bounds]
+    if not chunks:  # empty audio
+        return []
     with torch.inference_mode():
         hyps = asr.transcribe(chunks, batch_size=batch_size, timestamps=True, verbose=False)
     if isinstance(hyps, tuple):
@@ -48,7 +50,8 @@ def transcribe(audio_path: str, model: str = DEFAULT_MODEL, threads: int | None 
     for (s, e), h in zip(bounds, hyps):
         c_start, c_end = s / sr, e / sr
         text = h.text.strip()
-        tokens = repair_tokens(((getattr(h, "timestamp", None) or {}).get("char")) or [], text)
+        ts = getattr(h, "timestamp", None)
+        tokens = repair_tokens((ts.get("char") if isinstance(ts, dict) else None) or [], text)
         segs = build_segments(tokens, offset=c_start) if tokens else []
         # If the tokens do not add up to the text, do not trust their times: one segment per chunk.
         if segs and "".join(x["text"] for x in segs).replace(" ", "") == text.replace(" ", ""):

@@ -110,3 +110,21 @@ def test_layer_step_by_step_equals_full_sequence():
             y, _, _ = layer(x[:, t:t + 1], past_key_values=cache, use_cache=True)
             outs.append(y)
     torch.testing.assert_close(torch.cat(outs, 1), full, rtol=1e-5, atol=1e-5)
+
+
+def test_unsupported_arguments_fail_clearly():
+    with pytest.raises(ValueError):
+        KimiDeltaAttentionCPU(hidden_size=64, head_dim=16, num_heads=4, mode="bogus")
+    with pytest.raises(ValueError):
+        KimiDeltaAttentionCPU(hidden_size=64, head_dim=16, num_heads=4, num_v_heads=6)
+    layer = KimiDeltaAttentionCPU(hidden_size=64, head_dim=16, num_heads=4, layer_idx=0)
+    with pytest.raises(NotImplementedError):
+        layer(torch.randn(1, 4, 64), cu_seqlens=torch.tensor([0, 2, 4]))
+
+
+def test_no_state_kept_without_use_cache():
+    layer = KimiDeltaAttentionCPU(hidden_size=64, head_dim=16, num_heads=4, layer_idx=0)
+    cache = _Cache()
+    with torch.no_grad():
+        layer(torch.randn(1, 3, 64), past_key_values=cache, use_cache=False)
+    assert cache[0]["recurrent_state"] is None and cache[0]["conv_state"] is None

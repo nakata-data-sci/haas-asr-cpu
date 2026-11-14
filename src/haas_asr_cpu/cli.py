@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 from .transcribe import DEFAULT_MODEL, transcribe
@@ -32,13 +33,15 @@ def main() -> None:
     ap.add_argument("--batch-size", type=int, default=4)
     ap.add_argument("-q", "--quiet", action="store_true")
     args = ap.parse_args()
+    if not sys.stdout.isatty():  # e.g. redirected on Japanese Windows (cp932 cannot encode every kanji)
+        sys.stdout.reconfigure(encoding="utf-8")
 
     segs = transcribe(str(args.audio), model=args.model, threads=args.threads,
                       batch_size=args.batch_size, verbose=not args.quiet)
     if args.json:
-        args.json.write_text(json.dumps({"model": args.model, "segments": segs}, ensure_ascii=False, indent=2))
+        args.json.write_text(json.dumps({"model": args.model, "segments": segs}, ensure_ascii=False, indent=2), encoding="utf-8")
     if args.srt:
-        args.srt.write_text(to_srt(segs))
+        args.srt.write_text(to_srt(segs), encoding="utf-8")
     for s in segs:
         print(f"[{_ts(s['start'])} --> {_ts(s['end'])}] {s['text']}")
 

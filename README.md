@@ -37,8 +37,9 @@ This is one machine and five talks of one genre, not a benchmark. The official r
 
 ## Install
 
-Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/) (recommended, it applies the dependency
-overrides Haas-ASR needs).
+Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/). uv is needed, not just recommended: the
+dependency overrides that NeMo 2.7.3 needs to import, and the CPU-only PyTorch index, are uv settings in
+`pyproject.toml`. A plain `pip install` does not apply them (and pulls the CUDA build of PyTorch on Linux).
 
 ```bash
 git clone https://github.com/nakata-data-sci/haas-asr-cpu.git
@@ -113,13 +114,20 @@ uv run pytest
 ### Sentence-level timestamps (`segments.py`)
 
 NeMo builds segments by grouping space-separated words at `.` `!` `?`. Japanese has no spaces, so each
-30-second chunk comes back as one segment. This package rebuilds segments from the per-token timestamps
+chunk (about 30 s, cut at quiet points) comes back as one segment. This package rebuilds segments from the per-token timestamps
 and closes a segment at:
 
 - a sentence-final mark (。？！?!);
 - a pause of 0.8 s or more;
-- after 8 s, a comma (、,) or a pause of 0.3 s or more;
-- 20 s at the latest.
+- after 8 s, a comma (、，,) or a pause of 0.3 s or more;
+- 20 s at the latest (only a single token can be longer).
+
+A fragment of 2 characters or fewer joins the next segment, unless a pause of 0.8 s separates them.
+
+TDT sometimes places the first token of a chunk at 0.0 s although it is spoken much later (one talk gave
+"こ" at 0.0 s and "んにちは" from 16.4 s). When the first token is at 0.0 s, is followed by a pause of 0.8 s
+or more and does not end a sentence or clause, it is moved to the next token. This is a heuristic: real
+speech at the very start of a chunk followed by a pause is moved too.
 
 On a 477-second talk this gives 62 segments (median 4.1 s, longest 15.4 s) instead of 16, with start
 times 0.6–0.8 s earlier than the human subtitle cues.

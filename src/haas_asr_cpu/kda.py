@@ -98,6 +98,12 @@ class KimiDeltaAttentionCPU(nn.Module):
             raise NotImplementedError("use_short_conv=False is not used by Haas")
         if lower_bound is not None or allow_neg_eigval:
             raise NotImplementedError("lower_bound / allow_neg_eigval are not used by Haas")
+        if mode not in ("chunk", "fused_recurrent"):
+            raise ValueError(f"mode must be 'chunk' or 'fused_recurrent', got {mode!r}")  # as fla
+        if num_v_heads is not None and num_v_heads % num_heads != 0:
+            raise ValueError(f"num_v_heads ({num_v_heads}) must be a multiple of num_heads ({num_heads})")
+        if not float(head_dim * expand_v).is_integer():
+            raise ValueError(f"head_dim * expand_v ({head_dim * expand_v}) must be an integer")
         self.mode = mode
         self.hidden_size = hidden_size
         self.conv_size = conv_size
@@ -128,9 +134,13 @@ class KimiDeltaAttentionCPU(nn.Module):
         self.o_proj = nn.Linear(self.value_dim, hidden_size, bias=False)
 
     def forward(self, hidden_states: torch.Tensor, attention_mask=None, past_key_values=None,
-                use_cache: bool | None = False, **_):
+                use_cache: bool | None = False, output_attentions: bool | None = False, **kwargs):
         if attention_mask is not None:
             raise NotImplementedError("attention_mask is not used by Haas inference")
+        if kwargs.get("cu_seqlens") is not None:
+            raise NotImplementedError("packed sequences (cu_seqlens) are not used by Haas inference")
+        if past_key_values is not None and self.layer_idx is None:
+            raise ValueError("layer_idx is required when past_key_values is given")
         x = hidden_states
         B, T, _ = x.shape
         last = None
@@ -155,8 +165,9 @@ class KimiDeltaAttentionCPU(nn.Module):
         o, S = recurrent_kda(q, k, v, g, beta, scale=K ** -0.5, initial_state=S0)
 
         if past_key_values is not None:
-            past_key_values.update(layer_idx=self.layer_idx, recurrent_state=S,
-                                   conv_state=(cq, ck, cv), offset=T)
+            # as fla: the states are kept only with use_cache
+            past_key_values.update(layer_idx=self.layer_idx, recurrent_state=S if use_cache else None,
+                                   conv_state=(cq, ck, cv) if use_cache else None, offset=T)
         o = self.o_norm(o, self.g_proj(x).view(B, T, HV, V))
         o = self.o_proj(o.reshape(B, T, self.value_dim).to(x.dtype))
         return o, None, past_key_values
