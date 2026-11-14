@@ -14,8 +14,8 @@ U+FFFD. `repair_tokens` aligns the tokens with the hypothesis text (h.text) and 
 
 from __future__ import annotations
 
-SENTENCE_END = ("。", "?", "!", "?", "!")
-CLAUSE_END = ("、", ",", ",")
+SENTENCE_END = ("\u3002", "?", "!", "\uff1f", "\uff01")  # 。 ? ! ？ ！
+CLAUSE_END = ("\u3001", ",", "\uff0c")  # 、 , ，
 BAD = "�"
 
 
@@ -35,23 +35,26 @@ def repair_tokens(tokens: list[dict], text: str) -> list[dict] | None:
         t = _text(tokens[i])
         if BAD not in t:
             stripped = t.strip()
+            p0 = pos  # spaces skipped here stay with this token, so "TEDx Kyoto" keeps its space
             while pos < len(text) and text[pos] == " " and not text.startswith(stripped, pos):
                 pos += 1
             if stripped and not text.startswith(stripped, pos):
                 return None
-            out.append({**tokens[i], "char": stripped})
             pos += len(stripped)
+            out.append({**tokens[i], "char": text[p0:pos] if stripped else ""})
             i += 1
             continue
         j = i  # tokens [i, j) contain U+FFFD
         while j < len(tokens) and BAD in _text(tokens[j]):
             j += 1
-        if j < len(tokens):
-            nxt = _text(tokens[j]).strip()
-            end = text.find(nxt, pos) if nxt else len(text)
+        k = j  # the next token with visible text bounds the replacement
+        while k < len(tokens) and not _text(tokens[k]).strip():
+            k += 1
+        if k < len(tokens):
+            end = text.find(_text(tokens[k]).strip(), pos)
         else:
             end = len(text)
-        if end < pos:
+        if end <= pos:
             return None
         repl = text[pos:end]
         out.append({**tokens[i], "char": repl, "end": tokens[j - 1].get("end")})
@@ -82,7 +85,10 @@ def build_segments(tokens: list[dict], offset: float = 0.0, gap: float = 0.8, sh
     timed = [t for t in tokens if _text(t).strip() and t.get("start") is not None]
     # TDT sometimes emits the first token of a chunk at frame 0 although its sound comes much later
     # (seen: "こ" at 0.0 s, "んにちは" from 16.4 s). Move such a token to just before the next one.
-    if len(timed) > 1 and float(timed[0]["start"]) == 0.0 and float(timed[1]["start"]) - float(timed[0]["end"]) >= gap:
+    # A token that closes a sentence or clause on its own (e.g. "はい。") is left where it is.
+    if (len(timed) > 1 and float(timed[0]["start"]) == 0.0
+            and float(timed[1]["start"]) - float(timed[0]["end"]) >= gap
+            and not _text(timed[0]).strip().endswith(SENTENCE_END + CLAUSE_END)):
         timed[0] = {**timed[0], "start": timed[1]["start"], "end": timed[1]["start"]}
 
     for tok in timed:

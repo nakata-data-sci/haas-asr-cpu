@@ -17,6 +17,7 @@ def transcribe(audio_path: str, model: str = DEFAULT_MODEL, threads: int | None 
 
     The audio is cut into chunks of up to 30 s at quiet points (Haas's own long-form splitter), each chunk
     is decoded with token timestamps, and the tokens are grouped into sentences (see segments.py).
+    With verbose=False, NeMo's logger (process-wide) is set to ERROR, since NeMo logs to stdout.
     """
     import torch
 

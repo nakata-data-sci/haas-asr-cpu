@@ -57,7 +57,7 @@ uv run haas-cpu-transcribe talk.wav --json talk.json --srt talk.srt --threads 8
 ```
 
 ```text
-[00:00:50.427 --> 00:00:54.911] 私の家では…
+[00:00:50.427 --> 00:00:60.107] 私の家では…
 ```
 
 Python:
@@ -66,7 +66,7 @@ Python:
 import haas_asr_cpu
 
 segments = haas_asr_cpu.transcribe("talk.wav", threads=8)
-# [{"start": 50.427, "end": 54.911, "text": "..."}, ...]
+# [{"start": 50.427, "end": 60.107, "text": "..."}, ...]
 ```
 
 Or patch Haas-ASR and use its own API:

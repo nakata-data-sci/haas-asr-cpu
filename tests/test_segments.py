@@ -59,3 +59,27 @@ def test_repair_rejects_mismatch():
 def test_first_token_at_frame_zero_moves_to_speech():
     toks = [tok("こ", 0.0, 0.32), tok("ん", 16.4, 16.56), tok("にちは", 16.56, 17.28), tok("私は", 17.6, 18.2)]
     assert build_segments(toks)[0] == {"start": 16.4, "end": 18.2, "text": "こんにちは私は"}
+
+
+def test_full_width_marks_close_segments():
+    toks = [tok("本当", 0.0, 0.4), tok("？", 0.4, 0.5), tok("はい", 0.6, 0.9), tok("！", 0.9, 1.0)]
+    assert [s["text"] for s in build_segments(toks)] == ["本当？", "はい！"]
+    long = [tok("あ", i * 0.5, i * 0.5 + 0.5) for i in range(17)] + [tok("，", 8.5, 8.6), tok("いい", 8.6, 9.0)]
+    assert [s["text"][-1] for s in build_segments(long)] == ["，", "い"]
+
+
+def test_repair_keeps_spaces_between_words():
+    toks = [tok("TEDx", 0.0, 0.3), tok("Kyoto", 0.3, 0.6), tok("です。", 0.6, 0.9)]
+    fixed = repair_tokens(toks, "TEDx Kyotoです。")
+    assert build_segments(fixed) == [{"start": 0.0, "end": 0.9, "text": "TEDx Kyotoです。"}]
+
+
+def test_repair_byte_fallback_followed_by_blank_token():
+    toks = [tok("�", 0.1, 0.2), tok("�", 0.2, 0.3), tok("�", 0.3, 0.4), tok("", 0.4, 0.4), tok("に", 0.4, 0.5)]
+    fixed = repair_tokens(toks, "兎に")
+    assert [t["char"] for t in fixed if t["char"]] == ["兎", "に"]
+
+
+def test_first_token_closing_a_sentence_stays():
+    toks = [tok("はい。", 0.0, 0.3), tok("今日は", 2.0, 2.5), tok("晴れ。", 2.5, 3.0)]
+    assert build_segments(toks)[0] == {"start": 0.0, "end": 0.3, "text": "はい。"}
