@@ -19,17 +19,18 @@ Five Japanese TEDx talks (42 min in total), human-made Japanese subtitles as the
 
 | Model | CER | kana CER | kana CER, fillers excluded | Real-time factor | Time for 42 min |
 |---|---|---|---|---|---|
-| **Haas-ja-v1.0 (this package, float32)** | **10.41%** | **7.13%** | **6.86%** | 0.06 | 163 s |
-| Whisper large-v3 (faster-whisper, int8) | 11.24% | 8.02% | 8.02% | 0.45 | 1,129 s |
-| Parakeet-ja (`nvidia/parakeet-tdt_ctc-0.6b-ja`) | 14.13% | 9.42% | 9.41% | 0.07 | 173 s |
+| **Haas-ja-v1.0 (this package, float32)** | **9.36%** | **6.10%** | **5.82%** | 0.06 | 154 s |
+| Whisper large-v3 (faster-whisper, int8) | 10.19% | 7.00% | 7.00% | 0.45 | 1,129 s |
+| Parakeet-ja (`nvidia/parakeet-tdt_ctc-0.6b-ja`) | 13.19% | 8.51% | 8.49% | 0.07 | 173 s |
 
 - **kana CER** compares readings (both sides converted to hiragana with pykakasi), so kanji/kana spelling
   differences such as 有る/ある are not counted as errors.
 - **fillers excluded** does not count fillers (あの, えー, …) that a model added but the subtitles omit.
   On two of the five talks Haas wrote many fillers; Whisper and Parakeet wrote almost none.
-- Haas won on 3 of the 5 talks. Whisper was slightly better on one (9.19% vs 9.39%) and Parakeet on
-  another (8.16% vs 8.94%).
+- Haas won on 3 of the 5 talks. Whisper was slightly better on one (8.45% vs 8.59%) and Parakeet on
+  another (7.40% vs 8.11%).
 - Haas's time includes loading the model (about 9 s per file).
+- Subtitle credit lines (翻訳: … / 校正: …) are removed from the reference.
 
 This is one machine and five talks of one genre, not a benchmark. The official results are on
 [asr-ja-bench](https://huggingface.co/datasets/third-intelligence/asr-ja-bench).
@@ -159,9 +160,9 @@ This is an unofficial project, not affiliated with Third Intelligence.
 パラメータで、モデル全体(6 億 1,580 万)の 1% もありません。ここを同じパラメータ名・同じ計算の純 PyTorch の層に
 差し替えて、公開されている重みをそのまま CPU で動かします。あわせて、日本語の文ごとのタイムスタンプも出します。
 
-- **精度**: 日本語の TEDx 講演 5 本(計 42 分)で、表記ゆれをならしたかな CER が 6.86%。
-  同じ CPU の Whisper large-v3(8.02%)と Parakeet-ja(9.41%)より低い値でした(上の表)。
-- **速さ**: 実時間比 0.06(42 分を 163 秒)。Whisper large-v3 の約 7 倍です。
+- **精度**: 日本語の TEDx 講演 5 本(計 42 分)で、表記ゆれとフィラーの差を除いたかな CER が 5.82%。
+  同じ CPU の Whisper large-v3(7.00%)と Parakeet-ja(8.49%)より低い値でした(上の表)。
+- **速さ**: 実時間比 0.06(42 分を 154 秒)。Whisper large-v3 の約 7 倍です。
 - **確かめ方**: flash-linear-attention 自身の参照実装 2 種と出力が一致することを、テストで確かめています。
 - **未確認**: GPU 版(bfloat16)との出力の突き合わせ、macOS・Windows での動作。
 
