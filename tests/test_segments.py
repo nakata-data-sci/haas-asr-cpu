@@ -138,3 +138,10 @@ def test_first_token_closing_a_clause_stays():
 def test_blank_tokens_do_not_split_a_pause():
     toks = [tok("あ", 0.5, 0.6), tok("", 1.0, 1.4), tok("い", 1.5, 1.7)]  # 0.9 s pause between あ and い
     assert [s["text"] for s in build_segments(toks)] == ["あ", "い"]
+
+
+def test_ascii_marks_the_model_emits_close_segments():
+    toks = [tok("本当", 0.0, 0.4), tok("!", 0.4, 0.5), tok("では", 0.6, 0.9)]
+    assert [s["text"] for s in build_segments(toks)] == ["本当!", "では"]
+    long = [tok("あ", i * 0.5, i * 0.5 + 0.5) for i in range(17)] + [tok(",", 8.5, 8.6), tok("いい", 8.6, 9.0)]
+    assert [s["text"][-1] for s in build_segments(long)] == [",", "い"]

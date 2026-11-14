@@ -137,5 +137,7 @@ def test_no_state_kept_without_use_cache():
 
 def test_expand_v_tolerance_as_fla():
     assert KimiDeltaAttentionCPU(hidden_size=64, head_dim=100, num_heads=1, expand_v=0.07).head_v_dim == 7
+    # 100 * 0.0700001 = 7.00001: within fla's relative tolerance of 1e-5
+    assert KimiDeltaAttentionCPU(hidden_size=64, head_dim=100, num_heads=1, expand_v=0.0700001).head_v_dim == 7
     with pytest.raises(ValueError):  # 15 * 0.5 = 7.5 is not an integer
         KimiDeltaAttentionCPU(hidden_size=64, head_dim=15, num_heads=1, expand_v=0.5)

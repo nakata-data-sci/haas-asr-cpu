@@ -15,6 +15,8 @@ U+FFFD. `repair_tokens` aligns the tokens with the hypothesis text (h.text) and 
 
 from __future__ import annotations
 
+# The Haas tokenizer normalises ？！， to ASCII, so the model emits 。、?!, ; the full-width forms are kept for
+# tokens from other sources.
 SENTENCE_END = ("\u3002", "?", "!", "\uff1f", "\uff01")  # 。 ? ! ？ ！
 CLAUSE_END = ("\u3001", ",", "\uff0c")  # 、 , ，
 BAD = "�"
