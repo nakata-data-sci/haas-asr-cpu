@@ -14,6 +14,8 @@ def test_full_width_space_at_a_sentence_boundary_keeps_token_times():
 def test_times_are_clamped_to_the_chunk():
     segs, ok = chunk_segments("はい。", {"char": [tok("はい。", 29.8, 30.4)]}, 0.0, 30.0)
     assert ok and segs == [{"start": 29.8, "end": 30.0, "text": "はい。"}]
+    segs, ok = chunk_segments("はい。", {"char": [tok("はい。", 30.2, 30.4)]}, 0.0, 30.0)  # starts past the chunk
+    assert ok and segs == [{"start": 30.0, "end": 30.0, "text": "はい。"}]
 
 
 def test_mismatch_falls_back_to_one_chunk_segment():

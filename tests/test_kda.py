@@ -117,9 +117,14 @@ def test_unsupported_arguments_fail_clearly():
         KimiDeltaAttentionCPU(hidden_size=64, head_dim=16, num_heads=4, mode="bogus")
     with pytest.raises(ValueError):
         KimiDeltaAttentionCPU(hidden_size=64, head_dim=16, num_heads=4, num_v_heads=6)
+    for kwargs in ({"use_short_conv": False}, {"lower_bound": -5.0}, {"allow_neg_eigval": True}):
+        with pytest.raises(NotImplementedError):
+            KimiDeltaAttentionCPU(hidden_size=64, head_dim=16, num_heads=4, **kwargs)
     layer = KimiDeltaAttentionCPU(hidden_size=64, head_dim=16, num_heads=4, layer_idx=0)
     with pytest.raises(NotImplementedError):
         layer(torch.randn(1, 4, 64), cu_seqlens=torch.tensor([0, 2, 4]))
+    with pytest.raises(NotImplementedError):
+        layer(torch.randn(1, 4, 64), attention_mask=torch.ones(1, 4))
 
 
 def test_no_state_kept_without_use_cache():
