@@ -40,10 +40,10 @@ Time for the 42 minutes, with the model loaded again for each file:
   (7.40% vs 8.11%).
 - Whisper's results changed between identical runs on two of the five talks (for example 5.31%, 10.27%
   and 6.23%); the bad runs contain repeated sentences and garbage text. faster-whisper retries with a
-  higher sampling temperature when an output looks wrong, which is likely the cause. Haas and Parakeet gave
-  identical results every run.
-- Loading is importing the libraries and loading the model: about 16 s per file for Haas (including starting
-  a subprocess, since it runs in its own environment) and Parakeet, 4–7 s for Whisper. With
+  higher sampling temperature when an output looks wrong, which is likely the cause. Haas and Parakeet ran twice
+  and gave identical results both times.
+- Loading is importing the libraries and loading the model. Averaged per file: 16 s for Haas (including
+  starting a subprocess, since it runs in its own environment), 17 s for Parakeet, 4–7 s for Whisper. With
   `haas_asr_cpu.load()` the model is loaded once for many files.
 - Subtitle credit lines (翻訳: … / 校正: …) are removed from the reference.
 
@@ -89,7 +89,7 @@ import haas_asr_cpu
 segments = haas_asr_cpu.transcribe("talk.wav", threads=8)
 # [{"start": 50.427, "end": 60.107, "text": "..."}, ...]
 
-# several files: load the model once (about 10 s) and reuse it
+# several files: load the model once (9–13 s here) and reuse it
 model = haas_asr_cpu.load(threads=8)
 for path in ["a.wav", "b.wav"]:
     segments = haas_asr_cpu.transcribe(path, model=model)
@@ -154,8 +154,9 @@ TDT sometimes places the first token of a chunk at 0.0 s although it is spoken m
 or more and does not end a sentence or clause, it is moved to the next token. This is a heuristic: real
 speech at the very start of a chunk followed by a pause is moved too.
 
-On a 477-second talk this gives 62 segments (median 4.1 s, longest 15.4 s) instead of 16, with start
-times 0.6–0.8 s earlier than the human subtitle cues.
+On a 477-second talk this gives 62 segments (median 4.1 s, longest 15.4 s) instead of 16. Matched to the
+human subtitle cue that starts with the same text, segments start a median 0.5 s earlier on that talk;
+on the other four talks the median difference is within ±0.3 s.
 
 Rare kanji such as 兎 are encoded as several SentencePiece byte-fallback tokens, each decoding to U+FFFD.
 `repair_tokens` aligns the tokens with the full hypothesis text and restores the characters. If the tokens
@@ -189,12 +190,12 @@ This is an unofficial project, not affiliated with Third Intelligence.
 **NVIDIA GPU なし・CPU だけ** で動かすためのパッケージです。
 
 公式の Haas-ASR は NVIDIA GPU が必須です。デコーダーの予測ネットワークが使う Kimi Delta Attention の
-実装(flash-linear-attention)が、Triton と CUDA でしか動かないためです。この部品は 2 層・390 万
-パラメータで、モデル全体(6 億 1,580 万)の 1% もありません。ここを同じパラメータ名・同じ計算の純 PyTorch の層に
+実装(flash-linear-attention)が、Triton と CUDA でしか動かないためです。この予測ネットワークは 2 層・
+390 万パラメータで、モデル全体(6 億 1,580 万)の 1% もありません。ここを同じパラメータ名・同じ計算の純 PyTorch の層に
 差し替えて、公開されている重みをそのまま CPU で動かします。あわせて、日本語の文ごとのタイムスタンプも出します。
 
 - **精度**: 日本語の TEDx 講演 5 本(計 42 分)で、表記ゆれとフィラーの差を除いたかな CER が 5.82%。
-  同じ CPU の Whisper large-v3(7.00%)と Parakeet-ja(8.49%)より低い値でした(上の表)。
+  同じ CPU の Whisper large-v3(3 回の実行で 7.00〜7.62%)と Parakeet-ja(8.49%)より低い値でした(上の表)。
 - **速さ**: 推論の実時間比 0.030(42 分を 76 秒)。推論は Whisper large-v3 の約 14 倍の速さです(読み込みを含めると約 7 倍)。
 - **確かめ方**: flash-linear-attention 自身の参照実装 2 種と出力が一致することを、テストで確かめています。
 - **未確認**: GPU 版(bfloat16)との出力の突き合わせ、macOS・Windows での動作。

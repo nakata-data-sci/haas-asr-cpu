@@ -33,8 +33,15 @@ def main() -> None:
     ap.add_argument("--batch-size", type=int, default=4)
     ap.add_argument("-q", "--quiet", action="store_true")
     args = ap.parse_args()
-    for out in (args.json, args.srt):  # fail before the (long) transcription, not after
-        if out is not None and not out.resolve().parent.is_dir():
+    # fail before the model is loaded and the (long) transcription runs, not after
+    if not args.audio.is_file():
+        ap.error(f"audio file not found: {args.audio}")
+    for out in (args.json, args.srt):
+        if out is None:
+            continue
+        if out.is_dir():
+            ap.error(f"output path is a directory: {out}")
+        if not out.resolve().parent.is_dir():
             ap.error(f"directory does not exist: {out.resolve().parent}")
     if not sys.stdout.isatty():  # e.g. redirected on Japanese Windows (cp932 cannot encode every kanji)
         sys.stdout.reconfigure(encoding="utf-8")
