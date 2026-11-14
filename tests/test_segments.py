@@ -6,7 +6,7 @@ def tok(c, s, e):
 
 
 def test_splits_on_sentence_end_and_skips_blank():
-    toks = [tok("", 0.0, 0.3), tok("みな", 11.7, 12.0), tok("さん", 12.0, 12.3), tok("?", 12.3, 12.4),
+    toks = [tok("", 11.4, 11.6), tok("みな", 11.7, 12.0), tok("さん", 12.0, 12.3), tok("?", 12.3, 12.4),
             tok("缶の", 13.0, 13.4), tok("裏側。", 13.4, 14.0)]
     assert build_segments(toks, offset=100.0) == [
         {"start": 111.7, "end": 112.4, "text": "みなさん?"},
