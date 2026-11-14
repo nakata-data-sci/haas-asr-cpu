@@ -176,7 +176,10 @@ class KimiDeltaAttentionCPU(nn.Module):
 
 
 def install() -> None:
-    """Make haas_asr build its prediction network with this layer instead of fla. Call before loading a model."""
+    """Make haas_asr build its prediction network with this layer instead of fla. Call before loading a model.
+
+    The replacement stays for the rest of the process: any later haas_asr.load_model() also gets this layer.
+    """
     import haas_asr.prednet as prednet
 
     prednet.load_kda_class = lambda: KimiDeltaAttentionCPU

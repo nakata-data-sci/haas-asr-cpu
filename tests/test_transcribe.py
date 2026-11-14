@@ -59,3 +59,21 @@ def test_bad_audio_fails_before_the_model_is_loaded(monkeypatch, tmp_path):
     bad.write_bytes(b"")
     with pytest.raises(Exception):
         t.transcribe(str(bad))
+
+
+def test_loaded_model_keeps_the_nemo_log_level(monkeypatch):
+    import importlib
+
+    import haas_asr
+    from nemo.utils import logging as nemo_logging
+
+    t = importlib.import_module("haas_asr_cpu.transcribe")
+    monkeypatch.setattr(haas_asr, "load_audio", lambda *_: [])
+    monkeypatch.setattr(haas_asr, "split_at_quiet_points", lambda a: [])
+    level = nemo_logging.getEffectiveLevel()
+    try:
+        nemo_logging.setLevel(nemo_logging.INFO)
+        assert t.transcribe("x.wav", model=object()) == []
+        assert nemo_logging.getEffectiveLevel() == nemo_logging.INFO
+    finally:
+        nemo_logging.setLevel(level)

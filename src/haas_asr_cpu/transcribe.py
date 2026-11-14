@@ -21,7 +21,8 @@ def load(model: str = DEFAULT_MODEL, threads: int | None = None, nemo_logs: bool
     """Load a Haas model for CPU (float32). Pass the result to transcribe() to reuse it across files.
 
     Unless nemo_logs=True, NeMo's logger (process-wide) is set to ERROR, since NeMo writes its INFO logs
-    to stdout.
+    to stdout. threads sets torch.set_num_threads for the process, and install() stays in effect for the
+    process (see kda.install).
     """
     import torch
 
@@ -48,12 +49,15 @@ def transcribe(audio_path: str, model=DEFAULT_MODEL, threads: int | None = None,
     model is a model name or path (loaded with load()) or a model already returned by load().
     The audio is cut at quiet points into chunks of about 30 s, up to about 32 s (Haas's own long-form splitter);
     each chunk is decoded with token timestamps, and the tokens are grouped into sentences (see segments.py).
-    verbose prints progress to stderr. threads and nemo_logs are as in load().
+    verbose prints progress to stderr. threads and nemo_logs are as in load(); with an already loaded
+    model, nemo_logs is ignored (the logger is left as load() set it). Decoding with timestamps leaves the
+    model's compute_timestamps setting on.
     """
     import torch
 
     log = (lambda m: print(f"[haas-asr-cpu] {m}", file=sys.stderr)) if verbose else (lambda m: None)
-    _quiet_nemo(nemo_logs)
+    if isinstance(model, (str, os.PathLike)):
+        _quiet_nemo(nemo_logs)  # with a loaded model, keep the logger as load() left it
     import haas_asr
 
     audio = haas_asr.load_audio(str(audio_path))  # before loading the model, so a bad file fails fast
