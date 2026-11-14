@@ -94,12 +94,17 @@ def test_repair_keeps_spaces_between_words():
     toks = [tok("TEDx", 0.0, 0.3), tok("Kyoto", 0.3, 0.6), tok("です。", 0.6, 0.9)]
     fixed = repair_tokens(toks, "TEDx Kyotoです。")
     assert build_segments(fixed) == [{"start": 0.0, "end": 0.9, "text": "TEDx Kyotoです。"}]
+    # as the Haas tokenizer really splits it: "▁" pieces decode to "" (one before "K")
+    pieces = ["", "T", "E", "D", "x", "", "K", "y", "o", "t", "o", "です", "。"]
+    toks = [tok(c, i * 0.1, i * 0.1 + 0.1) for i, c in enumerate(pieces)]
+    assert build_segments(repair_tokens(toks, "TEDx Kyotoです。"))[0]["text"] == "TEDx Kyotoです。"
 
 
 def test_repair_byte_fallback_followed_by_blank_token():
-    toks = [tok("�", 0.1, 0.2), tok("�", 0.2, 0.3), tok("�", 0.3, 0.4), tok("", 0.4, 0.4), tok("に", 0.4, 0.5)]
+    toks = [tok("�", 0.1, 0.2), tok("�", 0.2, 0.3), tok("�", 0.3, 0.4), tok("", 0.4, 0.45), tok("に", 0.5, 0.6)]
     fixed = repair_tokens(toks, "兎に")
     assert [t["char"] for t in fixed if t["char"]] == ["兎", "に"]
+    assert fixed[0]["end"] == 0.4  # the end of the last U+FFFD token, not of the blank after it
 
 
 def test_first_token_closing_a_sentence_stays():
