@@ -191,3 +191,14 @@ def test_repair_rejects_a_byte_fallback_run_with_no_text():
 
 def test_single_token_at_frame_zero():
     assert build_segments([tok("はい", 0.0, 0.3)]) == [{"start": 0.0, "end": 0.3, "text": "はい"}]
+
+
+def test_no_comma_or_short_pause_split_before_soft_max():
+    f = lambda n: n * 0.01 * 8
+    for n in range(4, 404):
+        # 99 frames = 7.92 s: a comma or a 0.32 s pause does not close the segment yet
+        comma = [tok("あ", f(n + i), f(n + i + 1)) for i in range(98)] + [tok("、", f(n + 98), f(n + 99)),
+                                                                         tok("いい", f(n + 99), f(n + 101))]
+        assert len(build_segments(comma)) == 1, n
+        pause = [tok("あ", f(n + i), f(n + i + 1)) for i in range(99)] + [tok("いい", f(n + 103), f(n + 105))]
+        assert len(build_segments(pause)) == 1, n

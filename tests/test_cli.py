@@ -22,7 +22,7 @@ def test_missing_output_directory_fails_before_transcribing(monkeypatch, tmp_pat
 
 
 def test_writes_json_and_srt(monkeypatch, tmp_path, capsys):
-    segs = [{"start": 0.0, "end": 1.5, "text": "兎𠮷。"}]
+    segs = [{"start": 0.0, "end": 1.5, "text": "兎𠮷。"}, {"start": 2.0, "end": 2.5, "text": "はい。"}]
     monkeypatch.setattr(cli, "transcribe", lambda *a, **k: segs)
     wav = tmp_path / "a.wav"
     wav.write_bytes(b"")
@@ -30,7 +30,8 @@ def test_writes_json_and_srt(monkeypatch, tmp_path, capsys):
                                       "--srt", str(tmp_path / "o.srt")])
     cli.main()
     assert "兎𠮷。" in capsys.readouterr().out
-    assert (tmp_path / "o.srt").read_text(encoding="utf-8") == "1\n00:00:00,000 --> 00:00:01,500\n兎𠮷。\n\n"
+    assert (tmp_path / "o.srt").read_text(encoding="utf-8") == (
+        "1\n00:00:00,000 --> 00:00:01,500\n兎𠮷。\n\n2\n00:00:02,000 --> 00:00:02,500\nはい。\n\n")
     import json
 
     assert json.loads((tmp_path / "o.json").read_text(encoding="utf-8"))["segments"] == segs

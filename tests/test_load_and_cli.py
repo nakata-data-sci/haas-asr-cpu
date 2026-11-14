@@ -136,3 +136,16 @@ def test_load_installs_before_loading_the_model(monkeypatch, restore_process_sta
     monkeypatch.setattr(haas_asr, "load_model", lambda name, device: seen.append(prednet.load_kda_class()) or _Model())
     t.load("m")
     assert seen == [KimiDeltaAttentionCPU]
+
+
+def test_fallback_message_goes_to_stderr_only(monkeypatch, stub_haas, capsys, restore_process_state):
+    class Mismatch(_Model):
+        def transcribe(self, chunks, batch_size, **kwargs):
+            return [_Hyp("いいえ", [("はい", 0.1, 0.4)]) for _ in chunks]
+
+    segs = t.transcribe("x.wav", model=Mismatch(), verbose=True)
+    out, err = capsys.readouterr()
+    assert segs == [{"start": 0.0, "end": 1.0, "text": "いいえ"}]
+    assert "fell back" in err and out == ""
+    t.transcribe("x.wav", model=Mismatch())  # verbose=False: silent
+    assert capsys.readouterr() == ("", "")
