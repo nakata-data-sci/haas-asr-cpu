@@ -80,9 +80,11 @@ def test_cli_passes_options_prints_progress_to_stderr_and_q_silences_it(monkeypa
     assert out == "[00:00:00.100 --> 00:00:00.400] はい。\n"
     assert "[haas-asr-cpu]" in err and "[haas-asr-cpu]" not in out
     assert stub_haas == ["my/model"] and model.calls == [3] and torch.get_num_threads() == 2
+    torch.set_num_threads(5)
     monkeypatch.setattr(sys, "argv", ["haas-cpu-transcribe", str(wav), "-q"])
     cli.main()
     assert "[haas-asr-cpu]" not in capsys.readouterr().err
+    assert torch.get_num_threads() == 5  # without --threads, torch's setting is left alone
 
 
 def test_cli_prints_the_transcript_before_writing_files(monkeypatch, stub_haas, tmp_path, capsys,
