@@ -324,3 +324,13 @@ def test_haas_state_passed_in_is_not_changed():
 def test_both_fla_modes_are_accepted():
     for mode in ("chunk", "fused_recurrent"):  # same computation on CPU
         KimiDeltaAttentionCPU(hidden_size=64, head_dim=16, num_heads=4, mode=mode)
+
+
+def test_layer_keeps_its_tensors_on_the_input_device():
+    """No tensor is created on the default (CPU) device: on a GPU that would fail. Checked on "meta"."""
+    layer = KimiDeltaAttentionCPU(hidden_size=64, head_dim=16, num_heads=4, layer_idx=0).to("meta")
+    x = torch.randn(2, 5, 64, device="meta")
+    out, _, cache = layer(x, past_key_values=_Cache(), use_cache=True)
+    assert out.device.type == "meta"
+    step, _, _ = layer(x[:, :1], past_key_values=cache, use_cache=True)  # the cached one-token path
+    assert step.device.type == "meta"

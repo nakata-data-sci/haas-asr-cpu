@@ -260,10 +260,11 @@ def test_rocm_pytorch_on_the_cpu_still_skips_the_nvidia_driver_check(monkeypatch
     original = llb.check_cuda_python_cuda_graphs_conditional_nodes_supported
     monkeypatch.setattr(torch.version, "hip", "7.16")
     monkeypatch.setattr(torch.backends.cudnn, "enabled", True)
-    model = _gpu_model()
-    monkeypatch.setattr(haas_asr, "load_model", lambda name, device, dtype=None: model)
+    model, seen = _gpu_model(), []
+    monkeypatch.setattr(haas_asr, "load_model", lambda name, device, dtype=None: seen.append(
+        llb.check_cuda_python_cuda_graphs_conditional_nodes_supported is original) or model)
     t.load("m", device="cpu")
-    assert llb.check_cuda_python_cuda_graphs_conditional_nodes_supported is not original
+    assert seen == [False]  # replaced before the model (and its decoder) is built
     assert torch.backends.cudnn.enabled and model.strategies == []  # the GPU-only changes are not made
 
 

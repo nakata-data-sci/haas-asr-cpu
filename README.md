@@ -185,8 +185,8 @@ PyTorch 2.14.0. Same five talks as above:
 | | Inference (42 min) | Inference real-time factor | CER | kana CER, fillers excluded |
 |---|---|---|---|---|
 | CPU, float32 (above) | 76 s | 0.030 | 9.36% | 5.82% |
-| **AMD GPU, float32** | **18 s** | **0.0072** | 9.36% | 5.82% |
-| AMD GPU, bfloat16 | 13 s | 0.0051 | 9.35% | 5.84% |
+| **AMD GPU, float32** | **18.2 s** | **0.0072** | 9.36% | 5.82% |
+| AMD GPU, bfloat16 | 12.7 s | 0.0051 | 9.35% | 5.84% |
 
 - In float32 the GPU gave the same segments as the CPU, text and times, on all five talks. In bfloat16 a
   few characters changed on two talks.
@@ -196,6 +196,9 @@ PyTorch 2.14.0. Same five talks as above:
   and that check is made to report "not supported". On the GPU, `torch.backends.cudnn` is also disabled,
   because MIOpen could not compile its batch-norm kernel (`miopenStatusUnknownError`), and the decoder
   runs without CUDA (HIP) graphs: with them the transcript of one talk changed and decoding was slower.
+- These workarounds are in `load()` (and `transcribe()` with a model name), not in `install()`: with a
+  ROCm build of PyTorch, the `install()` + `haas_asr.load_model` route in [Usage](#usage) fails while loading, even
+  on the CPU.
 - An NVIDIA GPU is not tested. There, the official Haas-ASR with fla's kernels is the better choice.
 - `device="cpu"` works in the same ROCm environment but is slow there: one 354 s talk took 276 s of
   inference with 8 threads, against 11 s with 16 threads for the CPU build of PyTorch on WSL.
@@ -224,7 +227,9 @@ PyTorch 2.14.0. Same five talks as above:
 - **Process-wide effects.** `load()` calls `install()`, which replaces `haas_asr.prednet.load_kda_class`
   for the rest of the process (a later `haas_asr.load_model(..., device="cuda")` would also get the CPU
   layer). `threads` sets `torch.set_num_threads` for the process. Unless `nemo_logs=True`, NeMo's logger is
-  set to ERROR. Decoding with timestamps leaves the model's `compute_timestamps` setting on.
+  set to ERROR. Decoding with timestamps leaves the model's `compute_timestamps` setting on. With a ROCm
+  build of PyTorch, `load()` also replaces NeMo's cuda-python check and, on the GPU, disables
+  `torch.backends.cudnn` (see [On a GPU](#on-a-gpu)).
 - **Pinned to Haas-ASR `acc614f`** (2026-10-30). `install()` relies on `haas_asr.prednet.load_kda_class`;
   a later Haas-ASR may change it.
 - Only the inference path used by Haas is implemented (no attention mask, no `allow_neg_eigval` /
