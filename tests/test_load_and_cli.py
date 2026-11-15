@@ -274,3 +274,11 @@ def test_transcribe_passes_device_and_dtype_to_load(monkeypatch, stub_haas, rest
     monkeypatch.setattr(t, "load", lambda name, **k: seen.append((k["device"], k["dtype"])) or _Model())
     t.transcribe("x.wav", device="cuda:1", dtype="bfloat16")
     assert seen == [("cuda:1", "bfloat16")]
+
+
+def test_chunks_cut_at_a_fraction_of_a_second(monkeypatch, stub_haas, restore_process_state):
+    """Real cuts land on any sample: the second chunk starts at 1.5625 s, not a whole second."""
+    monkeypatch.setattr(haas_asr, "load_audio", lambda *_: [0.0] * 48000)
+    monkeypatch.setattr(haas_asr, "split_at_quiet_points", lambda a: [(0, 25000), (25000, 48000)])
+    segs = t.transcribe("x.wav", model=_Model())
+    assert segs == [{"start": 0.1, "end": 0.4, "text": "はい。"}, {"start": 1.663, "end": 1.962, "text": "はい。"}]
