@@ -299,3 +299,23 @@ def test_cache_without_layer_idx_fails_clearly():
     layer = KimiDeltaAttentionCPU(hidden_size=64, head_dim=16, num_heads=4)
     with pytest.raises(ValueError, match="layer_idx"):
         layer(torch.randn(1, 2, 64), past_key_values=_Cache(), use_cache=True)
+
+
+def test_haas_state_passed_in_is_not_changed():
+    """NeMo keeps the old state for hypotheses that emitted blank, so the layer must not update it in place.
+
+    With the Haas-ja config the recurrent state handed to the layer is a view of NeMo's state tensor."""
+    from haas_asr.prednet import KDAConfig, KDAPredictionNetwork
+
+    from haas_asr_cpu.kda import install
+
+    install()
+    torch.manual_seed(0)
+    net = KDAPredictionNetwork(640, 2, KDAConfig(num_heads=5, head_dim=64, expand_v=1.0, conv_size=4,
+                                                 final_norm=True)).eval()
+    y = torch.randn(1, 2, 640)
+    with torch.no_grad():
+        _, state = net(y)
+        before = [s.clone() for s in state]
+        net(y, state)
+    assert all(torch.equal(a, b) for a, b in zip(before, state))

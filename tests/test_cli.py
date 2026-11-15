@@ -89,3 +89,23 @@ def test_default_model_and_json_records_the_model_used(monkeypatch, tmp_path):
     cli.main()
     assert seen == ["third-intelligence/Haas-ja-v1.0", "my/model"]
     assert json.loads((tmp_path / "o.json").read_text(encoding="utf-8"))["model"] == "my/model"
+
+
+def test_one_thread_and_batch_size_one_are_accepted(monkeypatch, tmp_path):
+    seen = []
+    monkeypatch.setattr(cli, "transcribe", lambda *a, **k: seen.append((k["threads"], k["batch_size"])) or [])
+    wav = tmp_path / "a.wav"
+    wav.write_bytes(b"")
+    monkeypatch.setattr(sys, "argv", ["haas-cpu-transcribe", str(wav), "-q", "--threads", "1", "--batch-size", "1"])
+    cli.main()
+    assert seen == [(1, 1)]
+
+
+def test_package_api_as_in_the_readme():
+    import haas_asr_cpu
+
+    assert set(haas_asr_cpu.__all__) == {"DEFAULT_MODEL", "KimiDeltaAttentionCPU", "build_segments", "install",
+                                         "load", "repair_tokens", "transcribe"}
+    for name in haas_asr_cpu.__all__:
+        obj = getattr(haas_asr_cpu, name)
+        assert isinstance(obj, str) if name == "DEFAULT_MODEL" else callable(obj), name

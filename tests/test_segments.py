@@ -292,3 +292,21 @@ def test_segment_end_is_the_latest_end_of_any_token():
     toks = [tok("ああ", 0.1, 9.0), tok("い", 0.1, 0.2), tok("う", 0.2, 0.3), tok("え、", 0.3, 0.4),
             tok("おお", 0.5, 0.6)]
     assert [s["text"] for s in build_segments(toks)] == ["ああいうえ、", "おお"]
+
+
+def test_thresholds_can_be_changed():
+    toks = [tok("今日は", 0.1, 1.0), tok("晴れ", 1.6, 2.0)]  # 0.6 s pause
+    assert len(build_segments(toks)) == 1 and len(build_segments(toks, gap=0.5)) == 2
+    toks = [tok("あああ", 0.1, 5.0), tok("いい", 5.2, 5.5)]  # 4.9 s, then a 0.2 s pause
+    assert len(build_segments(toks)) == 1
+    assert len(build_segments(toks, soft_max=4.0, short_gap=0.1)) == 2
+    assert len(build_segments(toks, soft_max=4.0)) == 1  # 0.2 s < short_gap 0.3
+    toks = [tok("ああ", 0.1, 5.0), tok("いい、", 5.0, 5.5), tok("うう", 5.5, 6.0)]
+    assert [s["text"] for s in build_segments(toks, soft_max=5.0)] == ["ああいい、", "うう"]
+    toks = [tok("ああ", 0.1, 3.0), tok("いい", 3.0, 6.0)]
+    assert len(build_segments(toks)) == 1 and len(build_segments(toks, hard_max=5.0)) == 2
+    toks = [tok("あいう。", 0.1, 0.5), tok("えお", 0.6, 0.9)]
+    assert len(build_segments(toks)) == 2 and len(build_segments(toks, min_chars=4)) == 1
+    toks = [tok("あ", 0.0, 0.2), tok("い。", 0.7, 0.9)]  # frame-0 rule: a 0.5 s pause after a token at 0.0 s
+    assert build_segments(toks)[0]["start"] == 0.0
+    assert build_segments(toks, gap=0.5) == [{"start": 0.7, "end": 0.9, "text": "あい。"}]
