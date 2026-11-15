@@ -57,3 +57,30 @@ def test_redirected_stdout_is_utf8_even_if_the_locale_is_cp932(monkeypatch, tmp_
     cli.main()
     out.flush()
     assert "𠮷野家。" in raw.getvalue().decode("utf-8")
+
+
+def test_output_under_a_missing_directory_with_dotdot_is_rejected_early(monkeypatch, tmp_path):
+    called = []
+    monkeypatch.setattr(cli, "transcribe", lambda *a, **k: called.append(1) or [])
+    wav = tmp_path / "a.wav"
+    wav.write_bytes(b"")
+    monkeypatch.setattr(sys, "argv", ["haas-cpu-transcribe", str(wav), "-o", str(tmp_path / "nope" / ".." / "o.json")])
+    with pytest.raises(SystemExit):
+        cli.main()
+    assert not called
+
+
+def test_default_model_and_json_records_the_model_used(monkeypatch, tmp_path):
+    import json
+
+    seen = []
+    monkeypatch.setattr(cli, "transcribe", lambda *a, **k: seen.append(k["model"]) or [])
+    wav = tmp_path / "a.wav"
+    wav.write_bytes(b"")
+    monkeypatch.setattr(sys, "argv", ["haas-cpu-transcribe", str(wav), "-q"])
+    cli.main()
+    monkeypatch.setattr(sys, "argv", ["haas-cpu-transcribe", str(wav), "-q", "--model", "my/model", "-o",
+                                      str(tmp_path / "o.json")])
+    cli.main()
+    assert seen == ["third-intelligence/Haas-ja-v1.0", "my/model"]
+    assert json.loads((tmp_path / "o.json").read_text(encoding="utf-8"))["model"] == "my/model"

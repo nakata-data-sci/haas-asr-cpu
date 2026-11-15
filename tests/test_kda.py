@@ -132,7 +132,7 @@ def test_no_state_kept_without_use_cache():
     cache = _Cache()
     with torch.no_grad():
         layer(torch.randn(1, 3, 64), past_key_values=cache, use_cache=False)
-    assert cache[0]["recurrent_state"] is None and cache[0]["conv_state"] is None
+    assert cache[0]["recurrent_state"] is None and cache[0]["conv_state"] == (None, None, None)  # as fla
 
 
 def test_expand_v_tolerance_as_fla():
@@ -293,3 +293,9 @@ def test_recurrent_matches_fla_with_slow_decay(naive):
     o, s = recurrent_kda(q, k, v, gate, beta, scale=q.shape[-1] ** -0.5, initial_state=s0)
     torch.testing.assert_close(o, o_ref, rtol=1e-5, atol=1e-5)
     torch.testing.assert_close(s, s_ref, rtol=1e-5, atol=1e-5)
+
+
+def test_cache_without_layer_idx_fails_clearly():
+    layer = KimiDeltaAttentionCPU(hidden_size=64, head_dim=16, num_heads=4)
+    with pytest.raises(ValueError, match="layer_idx"):
+        layer(torch.randn(1, 2, 64), past_key_values=_Cache(), use_cache=True)

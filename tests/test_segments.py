@@ -228,3 +228,16 @@ def test_repair_when_the_next_token_text_also_appears_elsewhere():
 def test_missing_start_follows_the_previous_token():
     toks = [tok("今日は", 0.1, 1.0), {"char": ["晴れ。"], "start": None, "end": 3.0}]
     assert build_segments(toks) == [{"start": 0.1, "end": 3.0, "text": "今日は晴れ。"}]
+
+
+def test_segment_never_ends_before_it_starts():
+    toks = [tok("今日は", 0.5, 1.0), {"char": ["晴れ"], "start": None, "end": 0.4}]
+    assert build_segments(toks) == [{"start": 0.5, "end": 1.0, "text": "今日は晴れ"}]
+    assert build_segments([tok("あい", 1.0, 0.5)]) == [{"start": 1.0, "end": 1.0, "text": "あい"}]
+
+
+def test_build_segments_does_not_change_the_callers_tokens():
+    toks = [{"char": ["あ"], "start": None, "end": None}, tok("いう。", 1.0, 1.4)]
+    before = [dict(t) for t in toks]
+    build_segments(toks)
+    assert toks == before

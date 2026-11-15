@@ -169,7 +169,7 @@ class KimiDeltaAttentionCPU(nn.Module):
         if past_key_values is not None:
             # as fla: the states are kept only with use_cache
             past_key_values.update(layer_idx=self.layer_idx, recurrent_state=S if use_cache else None,
-                                   conv_state=(cq, ck, cv) if use_cache else None, offset=T)
+                                   conv_state=(cq, ck, cv), offset=T)  # each None without use_cache
         o = self.o_norm(o, self.g_proj(x).view(B, T, HV, V))
         o = self.o_proj(o.reshape(B, T, self.value_dim).to(x.dtype))
         return o, None, past_key_values

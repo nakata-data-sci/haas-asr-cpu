@@ -159,3 +159,34 @@ def test_no_fallback_message_when_every_chunk_has_token_times(monkeypatch, stub_
     t.transcribe("x.wav", model=Good(), verbose=True)
     err = capsys.readouterr().err
     assert "segments" in err and "fell back" not in err
+
+
+def test_default_model_name(stub_haas, restore_process_state):
+    assert t.DEFAULT_MODEL == "third-intelligence/Haas-ja-v1.0"
+    t.load()
+    t.transcribe("x.wav")
+    assert stub_haas == [(t.DEFAULT_MODEL, "cpu")] * 2
+
+
+def test_each_chunk_gets_its_own_audio_and_offset(monkeypatch, stub_haas, restore_process_state):
+    audio = [0.0] * 16000 + [1.0] * 4001
+    monkeypatch.setattr(haas_asr, "load_audio", lambda *_: audio)
+    monkeypatch.setattr(haas_asr, "split_at_quiet_points", lambda a: [(0, 16000), (16000, 20001)])
+
+    class PerChunk(_Model):
+        def transcribe(self, chunks, batch_size, **kwargs):
+            self.calls.append([(len(c), c[0]) for c in chunks])
+            return [_Hyp("はい。" if c[0] == 0.0 else "いいえ。", [("はい。" if c[0] == 0.0 else "いいえ。", 0.1, 0.4)])
+                    for c in chunks]
+
+    model = PerChunk()
+    segs = t.transcribe("x.wav", model=model)
+    assert model.calls == [[(16000, 0.0), (4001, 1.0)]]
+    # chunk 2: 1.0-1.2500625 s; its token 0.1-0.4 s becomes 1.1 s to the chunk end, rounded to ms
+    assert segs == [{"start": 0.1, "end": 0.4, "text": "はい。"}, {"start": 1.1, "end": 1.25, "text": "いいえ。"}]
+
+
+def test_fallback_segment_times_are_rounded():
+    segs, ok = t.chunk_segments("いいえ", {"char": [{"char": ["はい"], "start": 0.1, "end": 0.4}]},
+                                1.000625, 2.0000625)
+    assert not ok and segs == [{"start": 1.001, "end": 2.0, "text": "いいえ"}]

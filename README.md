@@ -153,7 +153,8 @@ and closes a segment at:
 - after 8 s, a comma (、，,) or a pause of 0.3 s or more;
 - 20 s at the latest (only a single token can be longer).
 
-A fragment of 2 characters or fewer joins the next segment, unless a pause of 0.8 s separates them.
+A fragment of 2 characters or fewer joins the next segment of the same chunk, unless a pause of 0.8 s
+separates them or the joined segment would pass 20 s.
 
 TDT sometimes places the first token of a chunk at 0.0 s although it is spoken much later (one talk gave
 "こ" at 0.0 s and "んにちは" from 16.4 s). When the first token is at 0.0 s, is followed by a pause of 0.8 s
