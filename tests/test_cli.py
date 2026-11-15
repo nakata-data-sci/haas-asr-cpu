@@ -109,3 +109,16 @@ def test_package_api_as_in_the_readme():
     for name in haas_asr_cpu.__all__:
         obj = getattr(haas_asr_cpu, name)
         assert isinstance(obj, str) if name == "DEFAULT_MODEL" else callable(obj), name
+
+
+def test_no_speech_still_writes_empty_output_files(monkeypatch, tmp_path):
+    import json
+
+    monkeypatch.setattr(cli, "transcribe", lambda *a, **k: [])
+    wav = tmp_path / "a.wav"
+    wav.write_bytes(b"")
+    monkeypatch.setattr(sys, "argv", ["haas-cpu-transcribe", str(wav), "-q", "--json", str(tmp_path / "o.json"),
+                                      "--srt", str(tmp_path / "o.srt")])
+    cli.main()  # a later step in a pipeline can rely on the files being there
+    assert (tmp_path / "o.srt").read_text(encoding="utf-8") == ""
+    assert json.loads((tmp_path / "o.json").read_text(encoding="utf-8"))["segments"] == []
