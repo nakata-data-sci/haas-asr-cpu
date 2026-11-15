@@ -44,7 +44,7 @@ def main() -> None:
         if out.is_dir():
             ap.error(f"output path is a directory: {out}")
         if not out.parent.is_dir():  # not resolve(): "missing/../o.json" cannot be written either
-            ap.error(f"directory does not exist: {out.resolve().parent}")
+            ap.error(f"directory does not exist: {out.parent}")
     if not sys.stdout.isatty():  # e.g. redirected on Japanese Windows (cp932 cannot encode every kanji)
         sys.stdout.reconfigure(encoding="utf-8")
 

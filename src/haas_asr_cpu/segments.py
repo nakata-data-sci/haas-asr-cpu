@@ -134,14 +134,15 @@ def build_segments(tokens: list[dict], offset: float = 0.0, gap: float = 0.8, sh
         text = _text(tok)
         start, end = float(tok["start"]), float(tok["end"])
         if cur:
-            pause = _span(cur[-1][2], start)
-            long_enough = _span(cur[0][1], cur[-1][2]) >= soft_max
+            seg_end = max(e for _, _, e in cur)  # as the segment's reported end (tokens may overlap)
+            pause = _span(seg_end, start)
+            long_enough = _span(cur[0][1], seg_end) >= soft_max
             if pause >= gap or _span(cur[0][1], end) > hard_max:
                 flush(force=True)  # a short fragment is not carried across a pause or past hard_max
             elif long_enough and pause >= short_gap:
                 flush()
         cur.append((text, start, end))
-        dur = _span(cur[0][1], end)
+        dur = _span(cur[0][1], max(e for _, _, e in cur))
         if text.endswith(SENTENCE_END) or (dur >= soft_max and text.endswith(CLAUSE_END)):
             flush()
         elif dur >= hard_max:

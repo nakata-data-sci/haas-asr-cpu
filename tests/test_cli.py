@@ -59,14 +59,16 @@ def test_redirected_stdout_is_utf8_even_if_the_locale_is_cp932(monkeypatch, tmp_
     assert "𠮷野家。" in raw.getvalue().decode("utf-8")
 
 
-def test_output_under_a_missing_directory_with_dotdot_is_rejected_early(monkeypatch, tmp_path):
+def test_output_under_a_missing_directory_with_dotdot_is_rejected_early(monkeypatch, tmp_path, capsys):
     called = []
     monkeypatch.setattr(cli, "transcribe", lambda *a, **k: called.append(1) or [])
     wav = tmp_path / "a.wav"
     wav.write_bytes(b"")
-    monkeypatch.setattr(sys, "argv", ["haas-cpu-transcribe", str(wav), "-o", str(tmp_path / "nope" / ".." / "o.json")])
-    with pytest.raises(SystemExit):
-        cli.main()
+    for parent in (tmp_path / "nope" / "..", wav):  # a missing directory, and a regular file
+        monkeypatch.setattr(sys, "argv", ["haas-cpu-transcribe", str(wav), "-o", str(parent / "o.json")])
+        with pytest.raises(SystemExit):
+            cli.main()
+        assert str(parent) in capsys.readouterr().err  # names the directory that is missing
     assert not called
 
 

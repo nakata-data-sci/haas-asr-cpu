@@ -241,3 +241,24 @@ def test_build_segments_does_not_change_the_callers_tokens():
     before = [dict(t) for t in toks]
     build_segments(toks)
     assert toks == before
+
+
+def test_segments_do_not_overlap_when_token_times_do():
+    # the missing start is filled as min(2.0, 0.6) = 0.6; the pause is measured from the segment's end (2.0)
+    toks = [tok("今日は", 0.1, 2.0), {"char": ["い"], "start": None, "end": 0.6}, tok("天気。", 1.5, 1.8)]
+    segs = build_segments(toks)
+    assert segs == [{"start": 0.1, "end": 2.0, "text": "今日はい天気。"}]
+    toks = [tok("あああ", 0.1, 9.0), tok("いい", 0.2, 0.3), tok("う", 9.4, 9.5)]
+    segs = build_segments(toks)  # 8.9 s long and 0.4 s after the segment's end: closes before う
+    assert [s["text"] for s in segs] == ["あああいい", "う"]
+    assert all(a["end"] <= b["start"] for a, b in zip(segs, segs[1:]))
+
+
+def test_segment_end_is_rounded_with_a_fractional_offset():
+    assert build_segments([tok("はい。", 0.1, 0.4)], offset=1.000625) == [
+        {"start": 1.101, "end": 1.401, "text": "はい。"}]
+
+
+def test_comma_split_measures_length_to_the_segments_end():
+    toks = [tok("あああ", 0.5, 9.5), tok("いい、", 1.0, 1.2), tok("うう", 1.5, 1.7)]
+    assert [s["text"] for s in build_segments(toks)] == ["あああいい、", "うう"]  # 9.0 s long at the comma
