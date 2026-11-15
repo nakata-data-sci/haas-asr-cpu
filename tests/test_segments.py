@@ -215,3 +215,16 @@ def test_filled_in_start_is_never_after_the_end():
     segs = build_segments(toks)
     assert segs[-1] == {"start": 0.6, "end": 0.6, "text": "明日は雨"}
     assert all(s["start"] <= s["end"] for s in segs)
+
+
+def test_repair_when_the_next_token_text_also_appears_elsewhere():
+    bad = [tok("�", 0.2, 0.3), tok("�", 0.3, 0.4), tok("�", 0.4, 0.5)]
+    fixed = repair_tokens([tok("に", 0.0, 0.2), *bad, tok("に", 0.5, 0.6)], "に兎に")
+    assert [t["char"] for t in fixed if t["char"]] == ["に", "兎", "に"]
+    fixed = repair_tokens([*bad, tok("に", 0.5, 0.6), tok("に", 0.6, 0.7)], "兎にに")
+    assert [t["char"] for t in fixed if t["char"]] == ["兎", "に", "に"]
+
+
+def test_missing_start_follows_the_previous_token():
+    toks = [tok("今日は", 0.1, 1.0), {"char": ["晴れ。"], "start": None, "end": 3.0}]
+    assert build_segments(toks) == [{"start": 0.1, "end": 3.0, "text": "今日は晴れ。"}]

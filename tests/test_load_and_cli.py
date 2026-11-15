@@ -149,3 +149,13 @@ def test_fallback_message_goes_to_stderr_only(monkeypatch, stub_haas, capsys, re
     assert "fell back" in err and out == ""
     t.transcribe("x.wav", model=Mismatch())  # verbose=False: silent
     assert capsys.readouterr() == ("", "")
+
+
+def test_no_fallback_message_when_every_chunk_has_token_times(monkeypatch, stub_haas, capsys, restore_process_state):
+    class Good(_Model):
+        def transcribe(self, chunks, batch_size, **kwargs):
+            return [_Hyp("はい", [("はい", 0.1, 0.4)]) for _ in chunks]
+
+    t.transcribe("x.wav", model=Good(), verbose=True)
+    err = capsys.readouterr().err
+    assert "segments" in err and "fell back" not in err

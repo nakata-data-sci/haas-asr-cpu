@@ -34,7 +34,9 @@ def test_writes_json_and_srt(monkeypatch, tmp_path, capsys):
         "1\n00:00:00,000 --> 00:00:01,500\n兎𠮷。\n\n2\n00:00:02,000 --> 00:00:02,500\nはい。\n\n")
     import json
 
-    assert json.loads((tmp_path / "o.json").read_text(encoding="utf-8"))["segments"] == segs
+    raw = (tmp_path / "o.json").read_text(encoding="utf-8")
+    assert "兎𠮷。" in raw  # readable, not \\u escapes
+    assert json.loads(raw)["segments"] == segs and "model" in json.loads(raw)
 
 
 def test_timestamps_over_a_minute_and_an_hour():

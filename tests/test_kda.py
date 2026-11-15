@@ -255,3 +255,41 @@ def test_whole_layer_matches_fla_formulas(naive):
         out, _, _ = layer(x)
         ref = _reference_layer(layer, x, naive)
     torch.testing.assert_close(out, ref, rtol=1e-5, atol=1e-6)
+
+
+def test_parameter_shapes_with_grouped_heads_expand_v_and_conv_bias():
+    """Shapes from fla 0.5.2 layers/kda.py __init__ for a config other than Haas's (K != V, HV != H, bias)."""
+    layer = KimiDeltaAttentionCPU(hidden_size=32, head_dim=8, num_heads=2, num_v_heads=4, expand_v=2,
+                                  conv_bias=True)
+    # K = 8, V = 16, key_dim = 2*8 = 16, value_dim = 4*16 = 64, gate_dim = 4*8 = 32
+    assert {k: tuple(v.shape) for k, v in layer.state_dict().items()} == {
+        "A_log": (4,), "dt_bias": (32,), "b_proj.weight": (4, 32),
+        "q_proj.weight": (16, 32), "k_proj.weight": (16, 32), "v_proj.weight": (64, 32),
+        "q_conv1d.weight": (16, 1, 4), "q_conv1d.bias": (16,), "k_conv1d.weight": (16, 1, 4),
+        "k_conv1d.bias": (16,), "v_conv1d.weight": (64, 1, 4), "v_conv1d.bias": (64,),
+        "f_proj.0.weight": (16, 32), "f_proj.1.weight": (32, 16),
+        "g_proj.0.weight": (16, 32), "g_proj.1.weight": (64, 16), "g_proj.1.bias": (64,),
+        "o_norm.weight": (16,), "o_proj.weight": (32, 64),
+    }
+
+
+def test_whole_layer_with_conv_bias_matches_fla_formulas(naive):
+    torch.manual_seed(4)
+    layer = KimiDeltaAttentionCPU(hidden_size=32, head_dim=8, num_heads=2, conv_bias=True).eval()
+    with torch.no_grad():
+        for p in layer.parameters():
+            p.normal_(0, 0.3)
+        x = torch.randn(1, 6, 32) * 0.1
+        out, _, _ = layer(x)
+        ref = _reference_layer(layer, x, naive)
+    torch.testing.assert_close(out, ref, rtol=1e-5, atol=1e-6)
+
+
+def test_recurrent_matches_fla_with_slow_decay(naive):
+    """Per-step decays close to 1 (long memory), as fla initialises them, not only 0.5-0.95."""
+    q, k, v, _, beta, s0 = _inputs(T=128, seed=5)
+    gate = -torch.rand(q.shape, generator=torch.Generator().manual_seed(6)) * 1e-3  # decay 0.999-1.0
+    o_ref, s_ref = naive.naive_recurrent_kda(q, k, v, gate, beta, initial_state=s0, output_final_state=True)
+    o, s = recurrent_kda(q, k, v, gate, beta, scale=q.shape[-1] ** -0.5, initial_state=s0)
+    torch.testing.assert_close(o, o_ref, rtol=1e-5, atol=1e-5)
+    torch.testing.assert_close(s, s_ref, rtol=1e-5, atol=1e-5)
