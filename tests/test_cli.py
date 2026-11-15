@@ -40,3 +40,18 @@ def test_writes_json_and_srt(monkeypatch, tmp_path, capsys):
 def test_timestamps_over_a_minute_and_an_hour():
     assert cli._ts(3725.5) == "01:02:05.500" and cli._ts(59.9996) == "00:01:00.000"
     assert cli.to_srt([{"start": 61.25, "end": 3725.5, "text": "あ"}]) == "1\n00:01:01,250 --> 01:02:05,500\nあ\n\n"
+
+
+def test_redirected_stdout_is_utf8_even_if_the_locale_is_cp932(monkeypatch, tmp_path):
+    import io
+
+    monkeypatch.setattr(cli, "transcribe", lambda *a, **k: [{"start": 0.0, "end": 1.0, "text": "𠮷野家。"}])
+    wav = tmp_path / "a.wav"
+    wav.write_bytes(b"")
+    raw = io.BytesIO()
+    out = io.TextIOWrapper(raw, encoding="cp932")  # not a TTY, like a redirect on Japanese Windows
+    monkeypatch.setattr(sys, "stdout", out)
+    monkeypatch.setattr(sys, "argv", ["haas-cpu-transcribe", str(wav), "-q"])
+    cli.main()
+    out.flush()
+    assert "𠮷野家。" in raw.getvalue().decode("utf-8")

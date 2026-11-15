@@ -211,3 +211,47 @@ def test_haas_prediction_network_with_the_cpu_layer_decodes_step_by_step():
             out, state = net(y[u:u + 1], state)
             outs.append(out)
     torch.testing.assert_close(torch.cat(outs, 0), full, rtol=1e-5, atol=1e-5)
+
+
+def _reference_layer(layer, x, naive):
+    """fla 0.5.2 KimiDeltaAttention.forward (inference, no cache) written out independently of kda.py.
+
+    short conv + SiLU: modules/conv/short_conv.py / gate -exp(A_log) * softplus(g + dt_bias): ops/kda/gate.py /
+    q, k l2-normalised with eps 1e-6 and sigmoid on beta: ops/kda/fused_recurrent.py / recurrence: fla's own
+    naive_recurrent_kda / RMSNorm (eps 1e-5) * weight * sigmoid(g): modules/fused_norm_gate.py.
+    """
+    B, T, _ = x.shape
+    H, HV, K, V = layer.num_heads, layer.num_v_heads, layer.head_k_dim, layer.head_v_dim
+
+    def conv(m, u):  # causal depthwise convolution over time
+        y = F.conv1d(F.pad(u.transpose(1, 2), (m.kernel_size[0] - 1, 0)), m.weight, m.bias, groups=u.shape[-1])
+        return F.silu(y).transpose(1, 2)
+
+    def l2(t):
+        return t * torch.rsqrt(t.pow(2).sum(-1, keepdim=True) + 1e-6)
+
+    q = l2(conv(layer.q_conv1d, layer.q_proj(x)).reshape(B, T, H, K))
+    k = l2(conv(layer.k_conv1d, layer.k_proj(x)).reshape(B, T, H, K))
+    v = conv(layer.v_conv1d, layer.v_proj(x)).reshape(B, T, HV, V)
+    g = layer.f_proj(x).reshape(B, T, HV, K)
+    g = -torch.exp(layer.A_log)[:, None] * F.softplus(g + layer.dt_bias.reshape(HV, K))
+    beta = torch.sigmoid(layer.b_proj(x))
+    o, _ = naive.naive_recurrent_kda(q, k, v, g, beta, scale=K ** -0.5)
+    o = o * torch.rsqrt(o.pow(2).mean(-1, keepdim=True) + 1e-5) * layer.o_norm.weight
+    o = o * torch.sigmoid(layer.g_proj(x).reshape(B, T, HV, V))
+    return layer.o_proj(o.reshape(B, T, HV * V))
+
+
+def test_whole_layer_matches_fla_formulas(naive):
+    """The gate, beta, l2 norm, short conv and gated norm, not only the recurrence, follow fla."""
+    torch.manual_seed(3)
+    layer = KimiDeltaAttentionCPU(hidden_size=32, head_dim=8, num_heads=2, num_v_heads=4, expand_v=2).eval()
+    with torch.no_grad():
+        for p in layer.parameters():
+            p.normal_(0, 0.3)
+        layer.A_log.normal_(0, 0.5)
+        layer.dt_bias.normal_(0, 1.0)
+        x = torch.randn(2, 10, 32) * 0.1  # small inputs, so both eps values matter
+        out, _, _ = layer(x)
+        ref = _reference_layer(layer, x, naive)
+    torch.testing.assert_close(out, ref, rtol=1e-5, atol=1e-6)

@@ -128,13 +128,13 @@ model = haas_asr.load_model("third-intelligence/Haas-ja-v1.0", device="cpu")
 layer. The prediction network runs one token at a time during decoding, so a plain loop is fast enough:
 the real-time factor matches Parakeet-ja, which has the same architecture with an LSTM.
 
-The tests check the recurrence against fla's own reference implementations (loaded as files so that
-fla's Triton code is never imported), and the whole layer for consistency. The other parts (gate,
-L2 norm, short convolution, gated norm) follow the fla code listed above but are not compared with fla in
-the tests:
+The tests check:
 
-- the recurrence equals `naive_recurrent_kda` and also `naive_chunk_kda` (a different, chunk-parallel
-  algorithm);
+- the recurrence equals fla's own `naive_recurrent_kda` and also `naive_chunk_kda` (a different,
+  chunk-parallel algorithm), loaded as files so that fla's Triton code is never imported;
+- the whole layer equals a reference written out in the tests from the fla formulas above (gate, L2 norm,
+  beta, short convolution, gated norm) around fla's `naive_recurrent_kda`. Those other parts are not run
+  from fla's code itself, because their files import Triton;
 - decoding one token at a time with a cache equals running the whole sequence at once, for both the
   short convolution and the full layer.
 
@@ -209,7 +209,7 @@ This is an unofficial project, not affiliated with Third Intelligence.
 - **精度**: 日本語の TEDx 講演 5 本(計 42 分)で、表記ゆれとフィラーの差を除いたかな CER が 5.82%。
   同じ CPU の Whisper large-v3(3 回の実行で 7.00〜7.62%)と Parakeet-ja(8.49%)より低い値でした(上の表)。
 - **速さ**: 推論の実時間比 0.030(42 分を 76 秒)。推論は Whisper large-v3 の約 14 倍の速さです(読み込みを含めると約 7 倍)。
-- **確かめ方**: 中心の再帰計算が flash-linear-attention 自身の参照実装 2 種と一致することと、層全体で 1 トークンずつ流した結果 = 一括の結果になることを、テストで確かめています。
+- **確かめ方**: 中心の再帰計算が flash-linear-attention 自身の参照実装 2 種と一致すること、層全体が fla の式どおりに書いた参照と一致すること、1 トークンずつ流した結果 = 一括の結果になることを、テストで確かめています。
 - **未確認**: GPU 版(bfloat16)との出力の突き合わせ、macOS・Windows での動作。
 - **記事**: 比べ方と結果の詳しい説明は [日本語の文字おこしはどれが正確？ Haas-ja・Whisper large-v3・Parakeet をCPUだけで比べた実測](https://congaroo.org/media/technology/haas-ja-whisper-parakeet-cpu-comparison)。
 

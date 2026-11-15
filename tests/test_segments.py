@@ -208,3 +208,10 @@ def test_frame_zero_token_stays_before_a_pause_shorter_than_gap():
     f = lambda n: n * 0.01 * 8
     toks = [tok("あの", 0.0, f(3)), tok("今日は", f(12), f(15))]  # 9 frames = 0.72 s < 0.8 s
     assert build_segments(toks)[0]["start"] == 0.0
+
+
+def test_filled_in_start_is_never_after_the_end():
+    toks = [tok("今日は晴れ。", 0.5, 1.0), {"char": ["明日は雨"], "start": None, "end": 0.6}]
+    segs = build_segments(toks)
+    assert segs[-1] == {"start": 0.6, "end": 0.6, "text": "明日は雨"}
+    assert all(s["start"] <= s["end"] for s in segs)
