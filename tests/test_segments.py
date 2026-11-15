@@ -322,3 +322,13 @@ def test_repair_byte_fallback_run_at_the_end_of_the_text():
     two = [tok("�", 0.6 + 0.05 * n, 0.65 + 0.05 * n) for n in range(6)]  # 兎鷲: two rare kanji, 6 tokens
     fixed = repair_tokens([tok("白い", 0.1, 0.5), *two], "白い兎鷲")
     assert [t["char"] for t in fixed if t["char"]] == ["白い", "兎鷲"]
+
+
+def test_hard_max_splits_when_a_token_crosses_20_s_by_a_little():
+    toks = [tok("ああ", 0.1, 19.5), tok("いい", 19.5, 20.3)]  # 20.2 s together, just over hard_max
+    assert build_segments(toks) == [{"start": 0.1, "end": 19.5, "text": "ああ"},
+                                    {"start": 19.5, "end": 20.3, "text": "いい"}]
+
+
+def test_repair_rejects_text_before_the_first_token():
+    assert repair_tokens([tok("い", 0, 1)], "あい") is None  # "あ" has no token
