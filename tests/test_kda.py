@@ -319,3 +319,8 @@ def test_haas_state_passed_in_is_not_changed():
         before = [s.clone() for s in state]
         net(y, state)
     assert all(torch.equal(a, b) for a, b in zip(before, state))
+
+
+def test_both_fla_modes_are_accepted():
+    for mode in ("chunk", "fused_recurrent"):  # same computation on CPU
+        KimiDeltaAttentionCPU(hidden_size=64, head_dim=16, num_heads=4, mode=mode)

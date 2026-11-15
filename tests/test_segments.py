@@ -310,3 +310,15 @@ def test_thresholds_can_be_changed():
     toks = [tok("あ", 0.0, 0.2), tok("い。", 0.7, 0.9)]  # frame-0 rule: a 0.5 s pause after a token at 0.0 s
     assert build_segments(toks)[0]["start"] == 0.0
     assert build_segments(toks, gap=0.5) == [{"start": 0.7, "end": 0.9, "text": "あい。"}]
+
+
+def test_repair_byte_fallback_run_at_the_end_of_the_text():
+    """A chunk cut after a rare kanji: the U+FFFD run (and a blank token) is the last thing in the text."""
+    toks = [tok("白い", 0.1, 0.5), tok("�", 0.6, 0.7), tok("�", 0.7, 0.8), tok("�", 0.8, 0.9),
+            tok("", 0.9, 0.9)]
+    fixed = repair_tokens(toks, "白い兎")
+    assert [t["char"] for t in fixed if t["char"]] == ["白い", "兎"]
+    assert build_segments(fixed) == [{"start": 0.1, "end": 0.9, "text": "白い兎"}]
+    two = [tok("�", 0.6 + 0.05 * n, 0.65 + 0.05 * n) for n in range(6)]  # 兎鷲: two rare kanji, 6 tokens
+    fixed = repair_tokens([tok("白い", 0.1, 0.5), *two], "白い兎鷲")
+    assert [t["char"] for t in fixed if t["char"]] == ["白い", "兎鷲"]
