@@ -190,7 +190,7 @@ PyTorch 2.14.0. Same five talks as above:
 
 - In float32 the GPU gave the same segments as the CPU, text and times, on all five talks. In bfloat16 a
   few characters changed on two talks.
-- Loading the model took about 15 s, as on the CPU.
+- Loading the model took about 15 s.
 - With a ROCm build of PyTorch, `load()` makes two more process-wide changes, both needed on that
   machine. NeMo's decoder checks NVIDIA's driver whenever PyTorch sees a GPU, even for `device="cpu"`,
   and that check is made to report "not supported". On the GPU, `torch.backends.cudnn` is also disabled,

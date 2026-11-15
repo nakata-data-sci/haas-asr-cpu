@@ -233,7 +233,9 @@ def _gpu_model():
     from omegaconf import OmegaConf
 
     m = _Model()
-    m.cfg = _Cfg(decoding=OmegaConf.create({"greedy": {"use_cuda_graph_decoder": True}}))
+    decoding = OmegaConf.create({"greedy": {"max_symbols": 10}})  # as in Haas-ja: the key is not there,
+    OmegaConf.set_struct(decoding, True)  # and the config is a struct, so it can only be added inside open_dict
+    m.cfg = _Cfg(decoding=decoding)
     m.strategies = []
     m.change_decoding_strategy = lambda cfg, verbose=True: m.strategies.append(cfg.greedy.use_cuda_graph_decoder)
     return m

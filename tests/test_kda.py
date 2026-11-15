@@ -334,3 +334,18 @@ def test_layer_keeps_its_tensors_on_the_input_device():
     assert out.device.type == "meta"
     step, _, _ = layer(x[:, :1], past_key_values=cache, use_cache=True)  # the cached one-token path
     assert step.device.type == "meta"
+
+
+def test_gated_norm_computes_in_float32_for_bfloat16_inputs():
+    """--dtype bfloat16: the norm upcasts, as fla's kernel does, and only the result is rounded to bfloat16."""
+    from haas_asr_cpu.kda import RMSNormGatedCPU
+
+    torch.manual_seed(5)
+    norm = RMSNormGatedCPU(16)
+    with torch.no_grad():
+        norm.weight.normal_(1, 0.3)
+        x, g = torch.randn(4, 16).bfloat16(), torch.randn(4, 16).bfloat16()
+        out = norm.bfloat16()(x, g)
+        xf, gf = x.float(), g.float()
+        ref = xf * torch.rsqrt(xf.pow(2).mean(-1, keepdim=True) + 1e-5) * norm.weight.float() * torch.sigmoid(gf)
+    assert out.dtype == torch.bfloat16 and torch.equal(out, ref.bfloat16())

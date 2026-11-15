@@ -138,6 +138,10 @@ def test_device_and_dtype_options(monkeypatch, tmp_path):
     monkeypatch.setattr(sys, "argv", ["haas-cpu-transcribe", str(wav), "-q", "--device", "cuda", "--dtype", "bfloat16"])
     cli.main()
     assert seen == [("cpu", "float32"), ("cuda", "bfloat16")]
+    monkeypatch.setattr(sys, "argv", ["haas-cpu-transcribe", str(wav), "-q", "--dtype", "float16"])
+    with pytest.raises(SystemExit):  # a usage error, before the audio is read
+        cli.main()
+    assert len(seen) == 2
     for device in ("cuda:1", "mps", "gpu"):  # a second GPU that is not there, not CUDA/ROCm, not a device
         monkeypatch.setattr(sys, "argv", ["haas-cpu-transcribe", str(wav), "-q", "--device", device])
         with pytest.raises(SystemExit):

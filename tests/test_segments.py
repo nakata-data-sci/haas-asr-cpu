@@ -358,3 +358,10 @@ def test_frame_zero_rule_skips_the_leading_blank_token():
     toks = [tok("", 0.0, 0.0), tok("こ", 0.0, 0.32), tok("ん", 16.4, 16.56), tok("にちは。", 16.56, 17.28)]
     assert build_segments(toks) == [{"start": 16.4, "end": 17.28, "text": "こんにちは。"}]
     assert build_segments([tok("", 0.0, 0.0), tok("はい", 0.0, 0.3)]) == [{"start": 0.0, "end": 0.3, "text": "はい"}]
+
+
+def test_a_segment_of_exactly_hard_max_is_closed():
+    """20.0 s exactly, then tokens that do not make it longer (zero length at its end): they start the next one."""
+    toks = [tok("今日は", 1.0, 11.0), tok("晴れ", 11.0, 21.0), tok("で", 21.0, 21.0), tok("す。", 21.0, 21.3)]
+    assert build_segments(toks) == [{"start": 1.0, "end": 21.0, "text": "今日は晴れ"},
+                                    {"start": 21.0, "end": 21.3, "text": "です。"}]
