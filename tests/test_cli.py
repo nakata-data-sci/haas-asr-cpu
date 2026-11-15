@@ -15,9 +15,10 @@ def test_missing_output_directory_fails_before_transcribing(monkeypatch, tmp_pat
         monkeypatch.setattr(sys, "argv", ["haas-cpu-transcribe", str(wav), *argv])
         with pytest.raises(SystemExit):
             cli.main()
-    monkeypatch.setattr(sys, "argv", ["haas-cpu-transcribe", str(tmp_path / "missing.wav")])
-    with pytest.raises(SystemExit):
-        cli.main()
+    for audio in (tmp_path / "missing.wav", tmp_path):  # missing, and a directory
+        monkeypatch.setattr(sys, "argv", ["haas-cpu-transcribe", str(audio)])
+        with pytest.raises(SystemExit):
+            cli.main()
     assert not called
 
 

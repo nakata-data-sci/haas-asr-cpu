@@ -7,7 +7,9 @@ comes back as one segment per audio chunk. Here tokens are added one by one and 
   - once the segment is `soft_max` seconds or longer: a comma (、,，) or a pause of `short_gap` or more
   - `hard_max` seconds (a long utterance with no comma or pause)
 Fragments of `min_chars` characters or fewer are merged into the next segment of the same call, unless a
-pause of `gap` or more separates them or the merged segment would pass `hard_max`. A segment is longer than `hard_max` only if a single token is.
+pause of `gap` or more separates them or the merged segment would pass `hard_max`. A segment is longer
+than `hard_max` only if a single token is. Segments never overlap, even if token times do: a segment
+never starts before the previous one ends, nor ends before it starts.
 
 Rare kanji (e.g. 兎) are split into several byte-fallback tokens by SentencePiece, and each one decodes to
 U+FFFD. `repair_tokens` aligns the tokens with the hypothesis text (h.text) and restores those characters.
@@ -115,6 +117,8 @@ def build_segments(tokens: list[dict], offset: float = 0.0, gap: float = 0.8, sh
         if len(text) <= min_chars and not force:
             return  # keep a short fragment for the next segment
         start = round(offset + cur[0][1], 3)
+        if out:  # odd token times (overlapping, or a filled-in start) must not put it inside the previous one
+            start = max(start, out[-1]["end"])
         end = round(offset + max(e for _, _, e in cur), 3)
         out.append({"start": start, "end": max(start, end), "text": text})  # never ends before it starts
         cur.clear()

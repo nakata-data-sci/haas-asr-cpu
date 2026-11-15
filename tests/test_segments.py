@@ -213,7 +213,7 @@ def test_frame_zero_token_stays_before_a_pause_shorter_than_gap():
 def test_filled_in_start_is_never_after_the_end():
     toks = [tok("今日は晴れ。", 0.5, 1.0), {"char": ["明日は雨"], "start": None, "end": 0.6}]
     segs = build_segments(toks)
-    assert segs[-1] == {"start": 0.6, "end": 0.6, "text": "明日は雨"}
+    assert segs[-1] == {"start": 1.0, "end": 1.0, "text": "明日は雨"}  # not before the previous end
     assert all(s["start"] <= s["end"] for s in segs)
 
 
@@ -261,4 +261,19 @@ def test_segment_end_is_rounded_with_a_fractional_offset():
 
 def test_comma_split_measures_length_to_the_segments_end():
     toks = [tok("あああ", 0.5, 9.5), tok("いい、", 1.0, 1.2), tok("うう", 1.5, 1.7)]
-    assert [s["text"] for s in build_segments(toks)] == ["あああいい、", "うう"]  # 9.0 s long at the comma
+    assert build_segments(toks) == [{"start": 0.5, "end": 9.5, "text": "あああいい、"},  # 9.0 s long at the comma
+                                    {"start": 9.5, "end": 9.5, "text": "うう"}]  # not inside the previous one
+
+
+def test_segments_never_overlap_after_any_kind_of_split():
+    cases = [[tok("あああ。", 0.1, 2.0), tok("いい。", 0.5, 0.8)],  # sentence end
+             [tok("あ", 0.1, 20.2), tok("い", 5.0, 6.0)],  # hard_max
+             [tok("今日は", 0.1, 2.0), {"char": ["い"], "start": None, "end": 0.6}, tok("天気。", 1.5, 1.8)]]
+    for toks in cases:
+        segs = build_segments(toks)
+        assert all(s["start"] <= s["end"] for s in segs)
+        assert all(a["end"] <= b["start"] for a, b in zip(segs, segs[1:])), segs
+
+
+def test_long_one_token_fragment_still_joins_after_a_short_pause():
+    assert [s["text"] for s in build_segments([tok("あ", 0.1, 9.1), tok("いう", 9.5, 9.7)])] == ["あいう"]
