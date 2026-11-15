@@ -321,3 +321,17 @@ def test_frame_zero_rule_applies_in_every_chunk_not_only_the_first():
                           {"char": ["にちは。"], "start": 16.56, "end": 17.28}]}
     segs, ok = t.chunk_segments("こんにちは。", timestamp, 30.0, 60.0)  # the chunk from 30 s
     assert ok and segs == [{"start": 46.4, "end": 47.28, "text": "こんにちは。"}]
+
+
+def test_rare_kanji_are_restored_inside_a_chunk():
+    """Byte-fallback tokens (each U+FFFD) are repaired on the way through chunk_segments, not only directly."""
+    def tok(c, s, e):
+        return {"char": [c], "start": s, "end": e}
+
+    bad = "�"
+    timestamp = {"char": [tok("", 0.0, 0.08), tok("白い", 0.16, 0.4), tok(bad, 0.4, 0.48), tok(bad, 0.48, 0.56),
+                          tok(bad, 0.56, 0.64), tok("。", 0.64, 0.72), tok("今日は", 1.0, 1.4), tok(bad, 1.4, 1.48),
+                          tok(bad, 1.48, 1.56), tok(bad, 1.56, 1.64), tok("を見た。", 1.64, 2.0)]}
+    segs, ok = t.chunk_segments("白い兎。今日は兎を見た。", timestamp, 30.0, 60.0)
+    assert ok and segs == [{"start": 30.16, "end": 30.72, "text": "白い兎。"},
+                           {"start": 31.0, "end": 32.0, "text": "今日は兎を見た。"}]
