@@ -186,7 +186,7 @@ PyTorch 2.14.0. Same five talks as above:
 |---|---|---|---|---|
 | CPU, float32 (above) | 76 s | 0.030 | 9.36% | 5.82% |
 | **AMD GPU, float32** | **18.2 s** | **0.0072** | 9.36% | 5.82% |
-| AMD GPU, bfloat16 | 12.7 s | 0.0051 | 9.35% | 5.84% |
+| AMD GPU, bfloat16 | 12.7 s | 0.0050 | 9.35% | 5.84% |
 
 - In float32 the GPU gave the same segments as the CPU, text and times, on all five talks. In bfloat16 a
   few characters changed on two talks.
