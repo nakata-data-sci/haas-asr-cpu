@@ -27,34 +27,38 @@ def load(model: str = DEFAULT_MODEL, threads: int | None = None, nemo_logs: bool
 
     Unless nemo_logs=True, NeMo's logger (process-wide) is set to ERROR, since NeMo writes its INFO logs
     to stdout. threads sets torch.set_num_threads for the process, and install() stays in effect for the
-    process (see kda.install). On an AMD GPU (ROCm), see _rocm_workarounds for two more process-wide changes.
+    process (see kda.install). With a ROCm build of PyTorch, see _rocm_workarounds for two more
+    process-wide changes.
     """
     import torch
 
     if dtype not in DTYPES:
         raise ValueError(f"dtype must be one of {DTYPES}, got {dtype!r}")
-    rocm = torch.device(device).type == "cuda" and torch.version.hip is not None
+    on_gpu = torch.device(device).type == "cuda"
+    rocm = torch.version.hip is not None
     if threads:
         torch.set_num_threads(threads)
     _quiet_nemo(nemo_logs)
     install()
     if rocm:
-        _rocm_workarounds()
+        _rocm_workarounds(on_gpu)
     import haas_asr
 
     asr = haas_asr.load_model(model, device=device, dtype=getattr(torch, dtype))
-    if rocm:
+    if rocm and on_gpu:
         _no_cuda_graph_decoder(asr)
     return asr
 
 
-def _rocm_workarounds() -> None:
-    """Two process-wide changes, needed on an AMD Radeon 8060S (gfx1151) with ROCm 10.1 on Windows.
+def _rocm_workarounds(on_gpu: bool) -> None:
+    """Process-wide changes, needed with ROCm 10.1 on Windows (AMD Radeon 8060S, gfx1151).
 
-    - NeMo's RNNT/TDT decoder checks NVIDIA's driver through cuda-python whenever the device is "cuda",
-      and fails when the GPU is not NVIDIA's. The check is made to report "not supported" instead.
-    - MIOpen (cuDNN's counterpart in ROCm) could not compile its batch-norm kernel there
-      (miopenStatusUnknownError), so torch.backends.cudnn is disabled and PyTorch's own kernels are used.
+    - NeMo's RNNT/TDT decoder checks NVIDIA's driver through cuda-python whenever PyTorch sees a GPU,
+      even when the model goes on the CPU, and fails when the GPU is not NVIDIA's. The check is made to
+      report "not supported" instead.
+    - On the GPU only: MIOpen (cuDNN's counterpart in ROCm) could not compile its batch-norm kernel
+      there (miopenStatusUnknownError), so torch.backends.cudnn is disabled and PyTorch's own kernels
+      are used.
     """
     import torch
     import nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_base as label_looping
@@ -63,7 +67,8 @@ def _rocm_workarounds() -> None:
         raise EnvironmentError("ROCm: cuda-python needs an NVIDIA driver")
 
     label_looping.check_cuda_python_cuda_graphs_conditional_nodes_supported = no_cuda_python
-    torch.backends.cudnn.enabled = False
+    if on_gpu:
+        torch.backends.cudnn.enabled = False
 
 
 def _no_cuda_graph_decoder(asr) -> None:

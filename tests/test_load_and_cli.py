@@ -236,15 +236,35 @@ def restore_gpu_state(monkeypatch):
 
 def test_load_on_an_amd_gpu_applies_the_rocm_workarounds(monkeypatch, restore_process_state, restore_gpu_state):
     llb = restore_gpu_state
-    model, seen = _gpu_model(), []
+    original = llb.check_cuda_python_cuda_graphs_conditional_nodes_supported
     monkeypatch.setattr(torch.version, "hip", "7.16")
-    monkeypatch.setattr(haas_asr, "load_model", lambda name, device, dtype=None: seen.append(
-        (name, device, dtype, torch.backends.cudnn.enabled)) or model)
-    assert t.load("m", device="cuda", dtype="bfloat16") is model
-    assert seen == [("m", "cuda", torch.bfloat16, False)]  # MIOpen off before the model is built
-    with pytest.raises(EnvironmentError):  # NeMo's cuda-python check reports "not supported"
-        llb.check_cuda_python_cuda_graphs_conditional_nodes_supported()
-    assert model.strategies == [False]  # no CUDA (HIP) graphs in the decoder
+    for device in ("cuda", "cuda:0", torch.device("cuda", 1)):  # every way of naming a GPU
+        model, seen = _gpu_model(), []
+        monkeypatch.setattr(torch.backends.cudnn, "enabled", True)
+        monkeypatch.setattr(llb, "check_cuda_python_cuda_graphs_conditional_nodes_supported", original)
+        monkeypatch.setattr(haas_asr, "load_model", lambda name, device, dtype=None: seen.append(
+            (device, dtype, torch.backends.cudnn.enabled,
+             llb.check_cuda_python_cuda_graphs_conditional_nodes_supported is original)) or model)
+        assert t.load("m", device=device, dtype="bfloat16") is model
+        # MIOpen off and NeMo's cuda-python check replaced before the model (and its decoder) is built
+        assert seen == [(device, torch.bfloat16, False, False)]
+        with pytest.raises(EnvironmentError, match="ROCm"):
+            llb.check_cuda_python_cuda_graphs_conditional_nodes_supported()
+        assert model.strategies == [False]  # no CUDA (HIP) graphs in the decoder
+
+
+def test_rocm_pytorch_on_the_cpu_still_skips_the_nvidia_driver_check(monkeypatch, restore_process_state,
+                                                                      restore_gpu_state):
+    """NeMo checks NVIDIA's driver whenever PyTorch sees a GPU, even for a model on the CPU."""
+    llb = restore_gpu_state
+    original = llb.check_cuda_python_cuda_graphs_conditional_nodes_supported
+    monkeypatch.setattr(torch.version, "hip", "7.16")
+    monkeypatch.setattr(torch.backends.cudnn, "enabled", True)
+    model = _gpu_model()
+    monkeypatch.setattr(haas_asr, "load_model", lambda name, device, dtype=None: model)
+    t.load("m", device="cpu")
+    assert llb.check_cuda_python_cuda_graphs_conditional_nodes_supported is not original
+    assert torch.backends.cudnn.enabled and model.strategies == []  # the GPU-only changes are not made
 
 
 def test_load_on_cpu_or_an_nvidia_gpu_changes_nothing_else(monkeypatch, restore_process_state, restore_gpu_state):
@@ -253,14 +273,11 @@ def test_load_on_cpu_or_an_nvidia_gpu_changes_nothing_else(monkeypatch, restore_
     seen = []
     monkeypatch.setattr(haas_asr, "load_model", lambda name, device, dtype=None: seen.append((device, dtype)) or _Model())
     monkeypatch.setattr(torch.backends.cudnn, "enabled", True)
-    t.load("m")
     monkeypatch.setattr(torch.version, "hip", None)
+    t.load("m")
     t.load("m", device="cuda")  # NVIDIA: NeMo's own CUDA graphs and cuDNN are left alone
     assert seen == [("cpu", torch.float32), ("cuda", torch.float32)]
     assert torch.backends.cudnn.enabled and llb.check_cuda_python_cuda_graphs_conditional_nodes_supported is check
-    monkeypatch.setattr(torch.version, "hip", "7.16")
-    t.load("m", device="cpu")  # a ROCm build of PyTorch on the CPU: no workarounds either
-    assert torch.backends.cudnn.enabled
 
 
 def test_unknown_dtype_is_rejected_before_loading(monkeypatch, restore_process_state):

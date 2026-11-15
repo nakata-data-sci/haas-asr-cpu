@@ -191,12 +191,14 @@ PyTorch 2.14.0. Same five talks as above:
 - In float32 the GPU gave the same segments as the CPU, text and times, on all five talks. In bfloat16 a
   few characters changed on two talks.
 - Loading the model took about 15 s, as on the CPU.
-- On ROCm, `load()` makes two more process-wide changes, both needed on that GPU: NeMo's decoder checks
-  NVIDIA's driver whenever the device is "cuda", and that check is made to report "not supported"; and
-  `torch.backends.cudnn` is disabled, because MIOpen could not compile its batch-norm kernel
-  (`miopenStatusUnknownError`). The decoder also runs without CUDA (HIP) graphs: with them the transcript
-  of one talk changed and decoding was slower.
+- With a ROCm build of PyTorch, `load()` makes two more process-wide changes, both needed on that
+  machine. NeMo's decoder checks NVIDIA's driver whenever PyTorch sees a GPU, even for `device="cpu"`,
+  and that check is made to report "not supported". On the GPU, `torch.backends.cudnn` is also disabled,
+  because MIOpen could not compile its batch-norm kernel (`miopenStatusUnknownError`), and the decoder
+  runs without CUDA (HIP) graphs: with them the transcript of one talk changed and decoding was slower.
 - An NVIDIA GPU is not tested. There, the official Haas-ASR with fla's kernels is the better choice.
+- `device="cpu"` works in the same ROCm environment but is slow there: one 354 s talk took 276 s of
+  inference with 8 threads, against 11 s with 16 threads for the CPU build of PyTorch on WSL.
 - `uv sync` installs the CPU build of PyTorch. For ROCm on Windows, install PyTorch from AMD's index first,
   then this package without letting it replace PyTorch, for example:
 
@@ -205,7 +207,8 @@ PyTorch 2.14.0. Same five talks as above:
   uv pip install --index-url https://stable.repo.amd.com/rocm/whl-next/ "torch[device-gfx1151]==2.14.0+rocm10.1.0" "torchaudio==2.11.0.3+rocm10.1.0"
   # haas-asr and haas-asr-cpu built as wheels (uv build); overrides.txt pins torch/torchaudio to the
   # versions above plus the dependency overrides in pyproject.toml
-  uv pip install --override overrides.txt --extra-index-url https://stable.repo.amd.com/rocm/whl-next/ haas_asr-0.1.0-py3-none-any.whl
+  # --compile-bytecode as in pyproject.toml: NeMo 2.7.3 can break when modules are compiled at run time
+  uv pip install --compile-bytecode --override overrides.txt --extra-index-url https://stable.repo.amd.com/rocm/whl-next/ haas_asr-0.1.0-py3-none-any.whl
   uv pip install --no-deps haas_asr_cpu-0.1.0-py3-none-any.whl
   ```
 
