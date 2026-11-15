@@ -50,6 +50,9 @@ Time for the 42 minutes, with the model loaded again for each file:
 This is one machine and five talks of one genre, not a benchmark. The official results are on
 [asr-ja-bench](https://huggingface.co/datasets/third-intelligence/asr-ja-bench).
 
+A write-up of this comparison (in Japanese), with how the port was made:
+[日本語の文字おこしはどれが正確？ Haas-ja・Whisper large-v3・Parakeet をCPUだけで比べた実測](https://congaroo.org/media/technology/haas-ja-whisper-parakeet-cpu-comparison).
+
 ## Install
 
 Requires Python 3.11 or 3.12 (tested with 3.12, which `.python-version` selects) and [uv](https://docs.astral.sh/uv/).
@@ -208,6 +211,7 @@ This is an unofficial project, not affiliated with Third Intelligence.
 - **速さ**: 推論の実時間比 0.030(42 分を 76 秒)。推論は Whisper large-v3 の約 14 倍の速さです(読み込みを含めると約 7 倍)。
 - **確かめ方**: 中心の再帰計算が flash-linear-attention 自身の参照実装 2 種と一致することと、層全体で 1 トークンずつ流した結果 = 一括の結果になることを、テストで確かめています。
 - **未確認**: GPU 版(bfloat16)との出力の突き合わせ、macOS・Windows での動作。
+- **記事**: 比べ方と結果の詳しい説明は [日本語の文字おこしはどれが正確？ Haas-ja・Whisper large-v3・Parakeet をCPUだけで比べた実測](https://congaroo.org/media/technology/haas-ja-whisper-parakeet-cpu-comparison)。
 
 ```bash
 git clone https://github.com/nakata-data-sci/haas-asr-cpu.git
