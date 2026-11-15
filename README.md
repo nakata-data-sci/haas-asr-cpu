@@ -12,6 +12,9 @@ CUDA only. That network is 2 layers and 3.9M of the model's 615.8M parameters; t
 already runs on CPU. This package swaps in a pure-PyTorch KDA layer with the same parameter names, so the
 released weights load unchanged, and adds sentence-level timestamps for Japanese.
 
+The same layer also runs on a GPU without fla. On an AMD GPU (ROCm on Windows) it gave exactly the CPU
+transcripts about 4 times faster; see [On a GPU](#on-a-gpu).
+
 ## Results
 
 Five Japanese TEDx talks (42 min in total), human-made Japanese subtitles as the reference, all on CPU
@@ -99,6 +102,9 @@ for path in ["a.wav", "b.wav"]:
     segments = haas_asr_cpu.transcribe(path, model=model)
 ```
 
+On a GPU, pass `device="cuda"` to `load()` / `transcribe()`, or `--device cuda` to the command; see
+[On a GPU](#on-a-gpu).
+
 Or patch Haas-ASR and use its own API:
 
 ```python
@@ -169,12 +175,46 @@ Rare kanji such as 兎 are encoded as several SentencePiece byte-fallback tokens
 `repair_tokens` aligns the tokens with the full hypothesis text and restores the characters. If the tokens
 still do not match the text, that chunk falls back to one chunk-level segment.
 
+## On a GPU
+
+`device="cuda"` (`--device cuda`) loads the model on a GPU; PyTorch calls AMD GPUs with ROCm "cuda" too.
+`dtype="bfloat16"` (`--dtype bfloat16`) uses the precision of the official results; the default is float32.
+Tested only on one machine: AMD Radeon 8060S (Ryzen AI MAX+ 395, gfx1151), Windows 11, ROCm 10.1 with
+PyTorch 2.14.0. Same five talks as above:
+
+| | Inference (42 min) | Inference real-time factor | CER | kana CER, fillers excluded |
+|---|---|---|---|---|
+| CPU, float32 (above) | 76 s | 0.030 | 9.36% | 5.82% |
+| **AMD GPU, float32** | **18 s** | **0.0072** | 9.36% | 5.82% |
+| AMD GPU, bfloat16 | 13 s | 0.0051 | 9.35% | 5.84% |
+
+- In float32 the GPU gave the same segments as the CPU, text and times, on all five talks. In bfloat16 a
+  few characters changed on two talks.
+- Loading the model took about 15 s, as on the CPU.
+- On ROCm, `load()` makes two more process-wide changes, both needed on that GPU: NeMo's decoder checks
+  NVIDIA's driver whenever the device is "cuda", and that check is made to report "not supported"; and
+  `torch.backends.cudnn` is disabled, because MIOpen could not compile its batch-norm kernel
+  (`miopenStatusUnknownError`). The decoder also runs without CUDA (HIP) graphs: with them the transcript
+  of one talk changed and decoding was slower.
+- An NVIDIA GPU is not tested. There, the official Haas-ASR with fla's kernels is the better choice.
+- `uv sync` installs the CPU build of PyTorch. For ROCm on Windows, install PyTorch from AMD's index first,
+  then this package without letting it replace PyTorch, for example:
+
+  ```powershell
+  uv venv --python 3.12
+  uv pip install --index-url https://stable.repo.amd.com/rocm/whl-next/ "torch[device-gfx1151]==2.14.0+rocm10.1.0" "torchaudio==2.11.0.3+rocm10.1.0"
+  # haas-asr and haas-asr-cpu built as wheels (uv build); overrides.txt pins torch/torchaudio to the
+  # versions above plus the dependency overrides in pyproject.toml
+  uv pip install --override overrides.txt --extra-index-url https://stable.repo.amd.com/rocm/whl-next/ haas_asr-0.1.0-py3-none-any.whl
+  uv pip install --no-deps haas_asr_cpu-0.1.0-py3-none-any.whl
+  ```
+
 ## Limitations
 
-- **Not compared with the GPU version.** The official numbers are measured in bfloat16 on NVIDIA GPUs;
-  this runs in float32 on CPU, so transcripts may differ slightly. A side-by-side check on a GPU has not
-  been done yet.
-- **Tested on Linux (WSL2) only.** With Python 3.12, Windows x64 and macOS 14+ on Apple Silicon have
+- **Not compared with the official GPU version.** The official numbers are measured in bfloat16 on NVIDIA
+  GPUs with fla's kernels; this runs in float32 on CPU, so transcripts may differ slightly. Only an AMD GPU
+  has been tried (see [On a GPU](#on-a-gpu)).
+- **CPU: tested on Linux (WSL2) only.** With Python 3.12, Windows x64 and macOS 14+ on Apple Silicon have
   wheels for every compiled dependency in `uv.lock` and should work, but are untested. Intel Macs and
   macOS 13 or earlier cannot install (PyTorch 2.15 has no wheels for them), nor can Windows on ARM
   (several compiled dependencies, such as kaldialign and pyarrow, have no wheels for it).
@@ -210,8 +250,10 @@ This is an unofficial project, not affiliated with Third Intelligence.
 - **精度**: 日本語の TEDx 講演 5 本(計 42 分)で、表記ゆれとフィラーの差を除いたかな CER が 5.82%。
   同じ CPU の Whisper large-v3(3 回の実行で 7.00〜7.62%)と Parakeet-ja(8.49%)より低い値でした(上の表)。
 - **速さ**: 推論の実時間比 0.030(42 分を 76 秒)。推論は Whisper large-v3 の約 14 倍の速さです(読み込みを含めると約 7 倍)。
+- **GPU でも**: fla 無しで GPU でも動きます(`--device cuda`)。AMD の GPU(Radeon 8060S・Windows の ROCm)では、
+  float32 で CPU と同じ文字おこし・同じ時刻のまま、推論が約 4 倍速くなりました(42 分を 18 秒)。
 - **確かめ方**: 中心の再帰計算が flash-linear-attention 自身の参照実装 2 種と一致すること、層全体が fla の式どおりに書いた参照と一致すること、1 トークンずつ流した結果 = 一括の結果になることを、テストで確かめています。
-- **未確認**: GPU 版(bfloat16)との出力の突き合わせ、macOS・Windows での動作。
+- **未確認**: 公式の GPU 版(NVIDIA・bfloat16)との出力の突き合わせ、NVIDIA の GPU、macOS と Windows の CPU での動作。
 - **記事**: 比べ方と結果の詳しい説明は [日本語の文字おこしはどれが正確？ Haas-ja・Whisper large-v3・Parakeet をCPUだけで比べた実測](https://congaroo.org/media/technology/haas-ja-whisper-parakeet-cpu-comparison)。
 
 ```bash

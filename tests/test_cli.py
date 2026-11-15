@@ -122,3 +122,28 @@ def test_no_speech_still_writes_empty_output_files(monkeypatch, tmp_path):
     cli.main()  # a later step in a pipeline can rely on the files being there
     assert (tmp_path / "o.srt").read_text(encoding="utf-8") == ""
     assert json.loads((tmp_path / "o.json").read_text(encoding="utf-8"))["segments"] == []
+
+
+def test_device_and_dtype_options(monkeypatch, tmp_path):
+    import torch
+
+    seen = []
+    monkeypatch.setattr(cli, "transcribe", lambda *a, **k: seen.append((k["device"], k["dtype"])) or [])
+    wav = tmp_path / "a.wav"
+    wav.write_bytes(b"")
+    monkeypatch.setattr(sys, "argv", ["haas-cpu-transcribe", str(wav), "-q"])
+    cli.main()
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(torch.cuda, "device_count", lambda: 1)
+    monkeypatch.setattr(sys, "argv", ["haas-cpu-transcribe", str(wav), "-q", "--device", "cuda", "--dtype", "bfloat16"])
+    cli.main()
+    assert seen == [("cpu", "float32"), ("cuda", "bfloat16")]
+    for device in ("cuda:1", "mps", "gpu"):  # a second GPU that is not there, not CUDA/ROCm, not a device
+        monkeypatch.setattr(sys, "argv", ["haas-cpu-transcribe", str(wav), "-q", "--device", device])
+        with pytest.raises(SystemExit):
+            cli.main()
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    monkeypatch.setattr(sys, "argv", ["haas-cpu-transcribe", str(wav), "-q", "--device", "cuda"])
+    with pytest.raises(SystemExit):
+        cli.main()
+    assert len(seen) == 2  # rejected before transcribing

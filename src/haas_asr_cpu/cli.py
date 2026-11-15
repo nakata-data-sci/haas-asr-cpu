@@ -7,7 +7,7 @@ import json
 import sys
 from pathlib import Path
 
-from .transcribe import DEFAULT_MODEL, transcribe
+from .transcribe import DEFAULT_MODEL, DTYPES, transcribe
 
 
 def _ts(t: float, sep: str = ".") -> str:
@@ -24,13 +24,15 @@ def to_srt(segments: list[dict]) -> str:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(prog="haas-cpu-transcribe", description="Transcribe Japanese audio with Haas-ja on CPU.")
+    ap = argparse.ArgumentParser(prog="haas-cpu-transcribe", description="Transcribe Japanese audio with Haas-ja on CPU (or a GPU).")
     ap.add_argument("audio", type=Path)
     ap.add_argument("-o", "--json", type=Path, help="write segments as JSON")
     ap.add_argument("--srt", type=Path, help="write segments as SRT")
     ap.add_argument("--model", default=DEFAULT_MODEL)
     ap.add_argument("--threads", type=int, default=None, help="torch CPU threads (default: torch's choice)")
     ap.add_argument("--batch-size", type=int, default=4)
+    ap.add_argument("--device", default="cpu", help='"cpu" (default) or a GPU: "cuda", "cuda:1" (AMD ROCm too)')
+    ap.add_argument("--dtype", choices=DTYPES, default="float32")
     ap.add_argument("-q", "--quiet", action="store_true")
     args = ap.parse_args()
     # fail before the model is loaded and the (long) transcription runs, not after
@@ -38,6 +40,15 @@ def main() -> None:
         ap.error(f"audio file not found: {args.audio}")
     if args.batch_size < 1 or (args.threads is not None and args.threads < 1):
         ap.error("--batch-size and --threads must be positive")
+    if args.device != "cpu":
+        import torch
+
+        try:
+            dev = torch.device(args.device)
+        except RuntimeError:
+            ap.error(f"unknown device: {args.device}")
+        if dev.type != "cuda" or not torch.cuda.is_available() or (dev.index or 0) >= torch.cuda.device_count():
+            ap.error(f"no such GPU visible to PyTorch: {args.device}")
     for out in (args.json, args.srt):
         if out is None:
             continue
@@ -49,7 +60,7 @@ def main() -> None:
         sys.stdout.reconfigure(encoding="utf-8")
 
     segs = transcribe(str(args.audio), model=args.model, threads=args.threads,
-                      batch_size=args.batch_size, verbose=not args.quiet)
+                      batch_size=args.batch_size, verbose=not args.quiet, device=args.device, dtype=args.dtype)
     for s in segs:  # print first, so the transcript is not lost if writing a file fails
         print(f"[{_ts(s['start'])} --> {_ts(s['end'])}] {s['text']}")
     sys.stdout.flush()

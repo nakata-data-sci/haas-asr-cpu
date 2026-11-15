@@ -42,7 +42,7 @@ def stub_haas(monkeypatch):
     monkeypatch.setattr(haas_asr, "load_audio", lambda *_: [0.0] * 16000)
     monkeypatch.setattr(haas_asr, "split_at_quiet_points", lambda a: [(0, 16000)])
     loaded = []
-    monkeypatch.setattr(haas_asr, "load_model", lambda name, device: loaded.append((name, device)) or _Model())
+    monkeypatch.setattr(haas_asr, "load_model", lambda name, device, dtype=None: loaded.append((name, device)) or _Model())
     return loaded
 
 
@@ -72,7 +72,7 @@ def test_cli_passes_options_prints_progress_to_stderr_and_q_silences_it(monkeypa
     wav = tmp_path / "a.wav"
     wav.write_bytes(b"")
     model = _Model()
-    monkeypatch.setattr(haas_asr, "load_model", lambda name, device: stub_haas.append(name) or model)
+    monkeypatch.setattr(haas_asr, "load_model", lambda name, device, dtype=None: stub_haas.append(name) or model)
     monkeypatch.setattr(sys, "argv", ["haas-cpu-transcribe", str(wav), "--model", "my/model", "--threads", "2",
                                       "--batch-size", "3"])
     cli.main()
@@ -133,7 +133,7 @@ def test_load_installs_and_quiets_nemo_before_loading_the_model(monkeypatch, res
 
     monkeypatch.setattr(prednet, "load_kda_class", lambda: "fla")
     seen = []
-    monkeypatch.setattr(haas_asr, "load_model", lambda name, device: seen.append(
+    monkeypatch.setattr(haas_asr, "load_model", lambda name, device, dtype=None: seen.append(
         (prednet.load_kda_class(), nemo_logging.getEffectiveLevel())) or _Model())
     nemo_logging.setLevel(nemo_logging.INFO)
     t.load("m")
@@ -206,3 +206,71 @@ def test_token_times_use_the_chunk_offset_and_end_to_the_millisecond():
 def test_model_load_time_is_logged(stub_haas, capsys, restore_process_state):
     t.transcribe("x.wav", verbose=True)
     assert "model loaded in" in capsys.readouterr().err
+
+
+class _Cfg(dict):
+    """Stand-in for the model's OmegaConf config: attribute access on a nested dict."""
+
+    __getattr__ = dict.__getitem__
+
+
+def _gpu_model():
+    from omegaconf import OmegaConf
+
+    m = _Model()
+    m.cfg = _Cfg(decoding=OmegaConf.create({"greedy": {"use_cuda_graph_decoder": True}}))
+    m.strategies = []
+    m.change_decoding_strategy = lambda cfg, verbose=True: m.strategies.append(cfg.greedy.use_cuda_graph_decoder)
+    return m
+
+
+@pytest.fixture
+def restore_gpu_state(monkeypatch):
+    import nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_base as llb
+
+    monkeypatch.setattr(llb, "check_cuda_python_cuda_graphs_conditional_nodes_supported",
+                        llb.check_cuda_python_cuda_graphs_conditional_nodes_supported)
+    monkeypatch.setattr(torch.backends.cudnn, "enabled", torch.backends.cudnn.enabled)
+    return llb
+
+
+def test_load_on_an_amd_gpu_applies_the_rocm_workarounds(monkeypatch, restore_process_state, restore_gpu_state):
+    llb = restore_gpu_state
+    model, seen = _gpu_model(), []
+    monkeypatch.setattr(torch.version, "hip", "7.16")
+    monkeypatch.setattr(haas_asr, "load_model", lambda name, device, dtype=None: seen.append(
+        (name, device, dtype, torch.backends.cudnn.enabled)) or model)
+    assert t.load("m", device="cuda", dtype="bfloat16") is model
+    assert seen == [("m", "cuda", torch.bfloat16, False)]  # MIOpen off before the model is built
+    with pytest.raises(EnvironmentError):  # NeMo's cuda-python check reports "not supported"
+        llb.check_cuda_python_cuda_graphs_conditional_nodes_supported()
+    assert model.strategies == [False]  # no CUDA (HIP) graphs in the decoder
+
+
+def test_load_on_cpu_or_an_nvidia_gpu_changes_nothing_else(monkeypatch, restore_process_state, restore_gpu_state):
+    llb = restore_gpu_state
+    check = llb.check_cuda_python_cuda_graphs_conditional_nodes_supported
+    seen = []
+    monkeypatch.setattr(haas_asr, "load_model", lambda name, device, dtype=None: seen.append((device, dtype)) or _Model())
+    monkeypatch.setattr(torch.backends.cudnn, "enabled", True)
+    t.load("m")
+    monkeypatch.setattr(torch.version, "hip", None)
+    t.load("m", device="cuda")  # NVIDIA: NeMo's own CUDA graphs and cuDNN are left alone
+    assert seen == [("cpu", torch.float32), ("cuda", torch.float32)]
+    assert torch.backends.cudnn.enabled and llb.check_cuda_python_cuda_graphs_conditional_nodes_supported is check
+    monkeypatch.setattr(torch.version, "hip", "7.16")
+    t.load("m", device="cpu")  # a ROCm build of PyTorch on the CPU: no workarounds either
+    assert torch.backends.cudnn.enabled
+
+
+def test_unknown_dtype_is_rejected_before_loading(monkeypatch, restore_process_state):
+    monkeypatch.setattr(haas_asr, "load_model", lambda *a, **k: pytest.fail("loaded"))
+    with pytest.raises(ValueError, match="dtype"):
+        t.load("m", dtype="float16")
+
+
+def test_transcribe_passes_device_and_dtype_to_load(monkeypatch, stub_haas, restore_process_state):
+    seen = []
+    monkeypatch.setattr(t, "load", lambda name, **k: seen.append((k["device"], k["dtype"])) or _Model())
+    t.transcribe("x.wav", device="cuda:1", dtype="bfloat16")
+    assert seen == [("cuda:1", "bfloat16")]

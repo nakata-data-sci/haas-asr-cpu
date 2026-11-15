@@ -1,4 +1,4 @@
-"""Transcribe an audio file with Haas-ja on CPU and return sentence-level segments."""
+"""Transcribe an audio file with Haas-ja (on CPU, or a GPU without fla) and return sentence-level segments."""
 
 from __future__ import annotations
 
@@ -11,28 +11,69 @@ from .kda import install
 from .segments import build_segments, repair_tokens
 
 DEFAULT_MODEL = "third-intelligence/Haas-ja-v1.0"
+DTYPES = ("float32", "bfloat16")
 
 
 def _squash(s: str) -> str:
     return re.sub(r"\s", "", s)  # all whitespace, including U+3000, which str.strip() also removes
 
 
-def load(model: str = DEFAULT_MODEL, threads: int | None = None, nemo_logs: bool = False):
-    """Load a Haas model for CPU (float32). Pass the result to transcribe() to reuse it across files.
+def load(model: str = DEFAULT_MODEL, threads: int | None = None, nemo_logs: bool = False,
+         device: str = "cpu", dtype: str = "float32"):
+    """Load a Haas model. Pass the result to transcribe() to reuse it across files.
+
+    device is "cpu" (default) or a GPU as PyTorch names it ("cuda", "cuda:1"; AMD GPUs with ROCm are
+    "cuda" too). dtype is "float32" (default) or "bfloat16" (the precision of the official results).
 
     Unless nemo_logs=True, NeMo's logger (process-wide) is set to ERROR, since NeMo writes its INFO logs
     to stdout. threads sets torch.set_num_threads for the process, and install() stays in effect for the
-    process (see kda.install).
+    process (see kda.install). On an AMD GPU (ROCm), see _rocm_workarounds for two more process-wide changes.
     """
     import torch
 
+    if dtype not in DTYPES:
+        raise ValueError(f"dtype must be one of {DTYPES}, got {dtype!r}")
+    rocm = torch.device(device).type == "cuda" and torch.version.hip is not None
     if threads:
         torch.set_num_threads(threads)
     _quiet_nemo(nemo_logs)
     install()
+    if rocm:
+        _rocm_workarounds()
     import haas_asr
 
-    return haas_asr.load_model(model, device="cpu")
+    asr = haas_asr.load_model(model, device=device, dtype=getattr(torch, dtype))
+    if rocm:
+        _no_cuda_graph_decoder(asr)
+    return asr
+
+
+def _rocm_workarounds() -> None:
+    """Two process-wide changes, needed on an AMD Radeon 8060S (gfx1151) with ROCm 10.1 on Windows.
+
+    - NeMo's RNNT/TDT decoder checks NVIDIA's driver through cuda-python whenever the device is "cuda",
+      and fails when the GPU is not NVIDIA's. The check is made to report "not supported" instead.
+    - MIOpen (cuDNN's counterpart in ROCm) could not compile its batch-norm kernel there
+      (miopenStatusUnknownError), so torch.backends.cudnn is disabled and PyTorch's own kernels are used.
+    """
+    import torch
+    import nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_base as label_looping
+
+    def no_cuda_python():
+        raise EnvironmentError("ROCm: cuda-python needs an NVIDIA driver")
+
+    label_looping.check_cuda_python_cuda_graphs_conditional_nodes_supported = no_cuda_python
+    torch.backends.cudnn.enabled = False
+
+
+def _no_cuda_graph_decoder(asr) -> None:
+    """Decode without CUDA (HIP) graphs: with them, the AMD GPU gave a different transcript and was slower."""
+    from omegaconf import open_dict
+
+    decoding = asr.cfg.decoding
+    with open_dict(decoding):
+        decoding.greedy.use_cuda_graph_decoder = False
+    asr.change_decoding_strategy(decoding, verbose=False)
 
 
 def _quiet_nemo(nemo_logs: bool) -> None:
@@ -43,14 +84,15 @@ def _quiet_nemo(nemo_logs: bool) -> None:
 
 
 def transcribe(audio_path: str, model=DEFAULT_MODEL, threads: int | None = None,
-               batch_size: int = 4, verbose: bool = False, nemo_logs: bool = False) -> list[dict]:
+               batch_size: int = 4, verbose: bool = False, nemo_logs: bool = False,
+               device: str = "cpu", dtype: str = "float32") -> list[dict]:
     """Return [{"start": sec, "end": sec, "text": str}, ...] for the whole file.
 
     model is a model name or path (loaded with load()) or a model already returned by load().
     The audio is cut at quiet points into chunks of about 30 s, up to about 32 s (Haas's own long-form splitter);
     each chunk is decoded with token timestamps, and the tokens are grouped into sentences (see segments.py).
-    verbose prints progress to stderr. threads and nemo_logs are as in load(); with an already loaded
-    model, nemo_logs is ignored (the logger is left as load() set it). Decoding with timestamps leaves the
+    verbose prints progress to stderr. threads, nemo_logs, device and dtype are as in load(); with an
+    already loaded model, nemo_logs, device and dtype are ignored (the logger is left as load() set it). Decoding with timestamps leaves the
     model's compute_timestamps setting on.
     """
     import torch
@@ -63,7 +105,7 @@ def transcribe(audio_path: str, model=DEFAULT_MODEL, threads: int | None = None,
     audio = haas_asr.load_audio(str(audio_path))  # before loading the model, so a bad file fails fast
     t0 = time.monotonic()
     if isinstance(model, (str, os.PathLike)):
-        asr = load(str(model), threads=threads, nemo_logs=nemo_logs)
+        asr = load(str(model), threads=threads, nemo_logs=nemo_logs, device=device, dtype=dtype)
         log(f"model loaded in {time.monotonic() - t0:.1f} s")
     else:
         asr = model
