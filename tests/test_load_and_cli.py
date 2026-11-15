@@ -314,3 +314,10 @@ def test_every_sentence_of_every_chunk_is_returned(monkeypatch, stub_haas, resto
     segs = t.transcribe("x.wav", model=TwoSentences())
     assert [(s["start"], s["end"], s["text"]) for s in segs] == [
         (0.1, 0.4, "はい。"), (0.5, 0.9, "いいえ。"), (1.1, 1.4, "はい。"), (1.5, 1.9, "いいえ。")]
+
+
+def test_frame_zero_rule_applies_in_every_chunk_not_only_the_first():
+    timestamp = {"char": [{"char": ["こ"], "start": 0.0, "end": 0.32}, {"char": ["ん"], "start": 16.4, "end": 16.56},
+                          {"char": ["にちは。"], "start": 16.56, "end": 17.28}]}
+    segs, ok = t.chunk_segments("こんにちは。", timestamp, 30.0, 60.0)  # the chunk from 30 s
+    assert ok and segs == [{"start": 46.4, "end": 47.28, "text": "こんにちは。"}]
