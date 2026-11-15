@@ -332,3 +332,29 @@ def test_hard_max_splits_when_a_token_crosses_20_s_by_a_little():
 
 def test_repair_rejects_text_before_the_first_token():
     assert repair_tokens([tok("い", 0, 1)], "あい") is None  # "あ" has no token
+
+
+def test_hard_max_before_adding_a_token_counts_from_the_segment_start():
+    toks = [tok("あ", i * 0.5, i * 0.5 + 0.5) for i in range(39)]  # 0-19.5 s, no break
+    toks.append(tok("い", 19.5, 20.3))  # 20.3 s from the first token, 0.8 s from the last
+    assert [(s["start"], s["end"]) for s in build_segments(toks)] == [(0.0, 19.5), (19.5, 20.3)]
+
+
+def test_repair_byte_fallback_run_after_a_multi_character_token():
+    """The text position (6) and the token index (1) of the U+FFFD run differ."""
+    bad = "�"
+    toks = [tok("今日は公園で", 0.0, 0.5), tok(bad, 0.5, 0.6), tok(bad, 0.6, 0.7), tok(bad, 0.7, 0.8),
+            tok("を", 0.8, 0.9), tok("見た。", 0.9, 1.2)]
+    fixed = repair_tokens(toks, "今日は公園で兎を見た。")
+    assert [t["char"] for t in fixed] == ["今日は公園で", "兎", "を", "見た。"]
+    assert fixed[1]["start"] == 0.5 and fixed[1]["end"] == 0.8
+    toks = [tok("雨を見て", 0.0, 0.5), tok(bad, 0.5, 0.6), tok(bad, 0.6, 0.7), tok(bad, 0.7, 0.8),
+            tok("を", 0.8, 0.9), tok("見た。", 0.9, 1.2)]  # the next token's "を" also comes before the run
+    assert [t["char"] for t in repair_tokens(toks, "雨を見て兎を見た。")] == ["雨を見て", "兎", "を", "見た。"]
+
+
+def test_frame_zero_rule_skips_the_leading_blank_token():
+    """The tokenizer's first piece is often a blank "▁" at 0.0 s; the rule looks at the first token with text."""
+    toks = [tok("", 0.0, 0.0), tok("こ", 0.0, 0.32), tok("ん", 16.4, 16.56), tok("にちは。", 16.56, 17.28)]
+    assert build_segments(toks) == [{"start": 16.4, "end": 17.28, "text": "こんにちは。"}]
+    assert build_segments([tok("", 0.0, 0.0), tok("はい", 0.0, 0.3)]) == [{"start": 0.0, "end": 0.3, "text": "はい"}]

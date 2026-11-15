@@ -147,3 +147,21 @@ def test_device_and_dtype_options(monkeypatch, tmp_path):
     with pytest.raises(SystemExit):
         cli.main()
     assert len(seen) == 2  # rejected before transcribing
+
+
+def test_cli_passes_the_audio_path_and_writes_files_as_utf8(monkeypatch, tmp_path):
+    """Files are written as UTF-8 whatever the locale (cp932 on Japanese Windows)."""
+    from pathlib import Path
+
+    seen, encodings = [], []
+    monkeypatch.setattr(cli, "transcribe", lambda audio, **k: seen.append(audio) or [
+        {"start": 0.0, "end": 1.0, "text": "𠮷野家。"}])
+    real = Path.write_text
+    monkeypatch.setattr(Path, "write_text", lambda self, data, encoding=None, **k: encodings.append(encoding)
+                        or real(self, data, encoding=encoding, **k))
+    wav = tmp_path / "a.wav"
+    wav.write_bytes(b"")
+    monkeypatch.setattr(sys, "argv", ["haas-cpu-transcribe", str(wav), "-q", "-o", str(tmp_path / "o.json"),
+                                      "--srt", str(tmp_path / "o.srt")])
+    cli.main()
+    assert seen == [str(wav)] and encodings == ["utf-8", "utf-8"]

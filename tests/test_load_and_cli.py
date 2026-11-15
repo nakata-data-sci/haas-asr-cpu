@@ -126,6 +126,19 @@ def test_transcribe_passes_nemo_logs_on_to_load(stub_haas, restore_process_state
     assert nemo_logging.getEffectiveLevel() == nemo_logging.INFO
 
 
+def test_transcribe_quiets_nemo_by_default(stub_haas, restore_process_state):
+    nemo_logging.setLevel(nemo_logging.INFO)
+    t.transcribe("x.wav", model="m")
+    assert nemo_logging.getEffectiveLevel() == nemo_logging.ERROR
+
+
+def test_transcribe_reads_the_given_audio_file(monkeypatch, stub_haas, restore_process_state):
+    seen = []
+    monkeypatch.setattr(haas_asr, "load_audio", lambda path: seen.append(path) or [0.0] * 16000)
+    t.transcribe(__import__("pathlib").Path("dir/talk.wav"), model="m", device="cpu")
+    assert seen == ["dir/talk.wav"]
+
+
 def test_load_installs_and_quiets_nemo_before_loading_the_model(monkeypatch, restore_process_state):
     import haas_asr.prednet as prednet
 
@@ -193,6 +206,8 @@ def test_fallback_segment_times_are_rounded():
     segs, ok = t.chunk_segments("いいえ", {"char": [{"char": ["はい"], "start": 0.1, "end": 0.4}]},
                                 1.000625, 2.0000625)
     assert not ok and segs == [{"start": 1.001, "end": 2.0, "text": "いいえ"}]
+    segs, ok = t.chunk_segments("いいえ", None, 30.0, 31.4567)  # to the millisecond, not the second
+    assert not ok and segs == [{"start": 30.0, "end": 31.457, "text": "いいえ"}]
 
 
 def test_token_times_use_the_chunk_offset_and_end_to_the_millisecond():
