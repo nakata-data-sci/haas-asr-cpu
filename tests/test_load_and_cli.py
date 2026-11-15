@@ -300,3 +300,17 @@ def test_chunks_cut_at_a_fraction_of_a_second(monkeypatch, stub_haas, restore_pr
     monkeypatch.setattr(haas_asr, "split_at_quiet_points", lambda a: [(0, 25000), (25000, 48000)])
     segs = t.transcribe("x.wav", model=_Model())
     assert segs == [{"start": 0.1, "end": 0.4, "text": "はい。"}, {"start": 1.663, "end": 1.962, "text": "はい。"}]
+
+
+def test_every_sentence_of_every_chunk_is_returned(monkeypatch, stub_haas, restore_process_state):
+    """A real ~30 s chunk holds several sentences; transcribe() must return all of them, in order."""
+    monkeypatch.setattr(haas_asr, "load_audio", lambda *_: [0.0] * 32000)
+    monkeypatch.setattr(haas_asr, "split_at_quiet_points", lambda a: [(0, 16000), (16000, 32000)])
+
+    class TwoSentences(_Model):
+        def transcribe(self, chunks, batch_size, **kwargs):
+            return [_Hyp("はい。いいえ。", [("はい。", 0.1, 0.4), ("いいえ。", 0.5, 0.9)]) for _ in chunks]
+
+    segs = t.transcribe("x.wav", model=TwoSentences())
+    assert [(s["start"], s["end"], s["text"]) for s in segs] == [
+        (0.1, 0.4, "はい。"), (0.5, 0.9, "いいえ。"), (1.1, 1.4, "はい。"), (1.5, 1.9, "いいえ。")]
