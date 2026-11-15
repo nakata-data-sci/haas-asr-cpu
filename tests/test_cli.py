@@ -65,11 +65,13 @@ def test_output_under_a_missing_directory_with_dotdot_is_rejected_early(monkeypa
     monkeypatch.setattr(cli, "transcribe", lambda *a, **k: called.append(1) or [])
     wav = tmp_path / "a.wav"
     wav.write_bytes(b"")
-    for parent in (tmp_path / "nope" / "..", wav):  # a missing directory, and a regular file
-        monkeypatch.setattr(sys, "argv", ["haas-cpu-transcribe", str(wav), "-o", str(parent / "o.json")])
-        with pytest.raises(SystemExit):
-            cli.main()
-        assert str(parent) in capsys.readouterr().err  # names the directory that is missing
+    for flag in ("-o", "--srt"):
+        for parent in (tmp_path / "nope" / "..", tmp_path / "nope", wav):  # missing dirs, and a regular file
+            monkeypatch.setattr(sys, "argv", ["haas-cpu-transcribe", str(wav), flag, str(parent / "o.out")])
+            with pytest.raises(SystemExit):
+                cli.main()
+            err = capsys.readouterr().err
+            assert f"directory does not exist: {parent}\n" in err  # names the directory, not the file
     assert not called
 
 

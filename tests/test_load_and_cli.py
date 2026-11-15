@@ -190,3 +190,16 @@ def test_fallback_segment_times_are_rounded():
     segs, ok = t.chunk_segments("いいえ", {"char": [{"char": ["はい"], "start": 0.1, "end": 0.4}]},
                                 1.000625, 2.0000625)
     assert not ok and segs == [{"start": 1.001, "end": 2.0, "text": "いいえ"}]
+
+
+def test_token_times_use_the_chunk_offset_and_end_to_the_millisecond():
+    segs, ok = t.chunk_segments(" はい。 ", {"char": [{"char": ["はい。"], "start": 0.1, "end": 29.5}]},
+                                1.000625, 30.0123)
+    assert ok and segs == [{"start": 1.101, "end": 30.012, "text": "はい。"}]
+    segs, ok = t.chunk_segments(" いいえ ", {"char": []}, 1.0, 2.0)
+    assert not ok and segs[0]["text"] == "いいえ"
+
+
+def test_model_load_time_is_logged(stub_haas, capsys, restore_process_state):
+    t.transcribe("x.wav", verbose=True)
+    assert "model loaded in" in capsys.readouterr().err

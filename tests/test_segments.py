@@ -277,3 +277,18 @@ def test_segments_never_overlap_after_any_kind_of_split():
 
 def test_long_one_token_fragment_still_joins_after_a_short_pause():
     assert [s["text"] for s in build_segments([tok("あ", 0.1, 9.1), tok("いう", 9.5, 9.7)])] == ["あいう"]
+
+
+def test_overlap_clamp_uses_the_latest_segment():
+    toks = [tok("ああ。", 0.1, 1.0), tok("いい。", 1.0, 2.0), tok("うう。", 0.5, 0.6)]
+    assert build_segments(toks)[-1] == {"start": 2.0, "end": 2.0, "text": "うう。"}
+
+
+def test_segment_end_is_the_latest_end_of_any_token():
+    # the latest end (5.0) is neither the first nor the last token's: no 0.8 s pause before えお
+    toks = [tok("あ", 0.1, 0.2), tok("い", 0.2, 5.0), tok("う", 0.3, 0.4), tok("えお", 1.3, 1.5)]
+    assert build_segments(toks) == [{"start": 0.1, "end": 5.0, "text": "あいうえお"}]
+    # length at the comma is measured to the latest end (9.0), so it splits after え、
+    toks = [tok("ああ", 0.1, 9.0), tok("い", 0.1, 0.2), tok("う", 0.2, 0.3), tok("え、", 0.3, 0.4),
+            tok("おお", 0.5, 0.6)]
+    assert [s["text"] for s in build_segments(toks)] == ["ああいうえ、", "おお"]
