@@ -220,13 +220,15 @@ PyTorch 2.14.0. Same five talks as above:
 - **Not compared with the official GPU version.** The official numbers are measured in bfloat16 on NVIDIA
   GPUs with fla's kernels; this runs in float32 on CPU, so transcripts may differ slightly. Only an AMD GPU
   has been tried (see [On a GPU](#on-a-gpu)).
-- **CPU: tested on Linux (WSL2) only.** With Python 3.12, Windows x64 and macOS 14+ on Apple Silicon have
-  wheels for every compiled dependency in `uv.lock` and should work, but are untested. Intel Macs and
+- **CPU: tested on Linux (WSL2) only** with the CPU build of PyTorch that `uv sync` installs (on Windows,
+  only the ROCm build's slow CPU path was run; see [On a GPU](#on-a-gpu)). With Python 3.12, Windows x64
+  and macOS 14+ on Apple Silicon have wheels for every compiled dependency in `uv.lock` and should work,
+  but are untested. Intel Macs and
   macOS 13 or earlier cannot install (PyTorch 2.15 has no wheels for them), nor can Windows on ARM
   (several compiled dependencies, such as kaldialign and pyarrow, have no wheels for it).
 - **Process-wide effects.** `load()` calls `install()`, which replaces `haas_asr.prednet.load_kda_class`
-  for the rest of the process (a later `haas_asr.load_model(..., device="cuda")` would also get the CPU
-  layer). `threads` sets `torch.set_num_threads` for the process. Unless `nemo_logs=True`, NeMo's logger is
+  for the rest of the process (a later `haas_asr.load_model(..., device="cuda")` would also get the
+  pure-PyTorch layer). `threads` sets `torch.set_num_threads` for the process. Unless `nemo_logs=True`, NeMo's logger is
   set to ERROR. Decoding with timestamps leaves the model's `compute_timestamps` setting on. With a ROCm
   build of PyTorch, `load()` also replaces NeMo's cuda-python check and, on the GPU, disables
   `torch.backends.cudnn` (see [On a GPU](#on-a-gpu)).
@@ -261,7 +263,7 @@ This is an unofficial project, not affiliated with Third Intelligence.
 - **GPU でも**: fla 無しで GPU でも動きます(`--device cuda`)。AMD の GPU(Radeon 8060S・Windows の ROCm)では、
   float32 で CPU と同じ文字おこし・同じ時刻のまま、推論が約 4 倍速くなりました(42 分を 18 秒)。
 - **確かめ方**: 中心の再帰計算が flash-linear-attention 自身の参照実装 2 種と一致すること、層全体が fla の式どおりに書いた参照と一致すること、1 トークンずつ流した結果 = 一括の結果になることを、テストで確かめています。
-- **未確認**: 公式の GPU 版(NVIDIA・bfloat16)との出力の突き合わせ、NVIDIA の GPU、macOS と Windows の CPU での動作。
+- **未確認**: 公式の GPU 版(NVIDIA・bfloat16)との出力の突き合わせ、NVIDIA の GPU、`uv sync` で入る CPU 版 PyTorch での macOS と Windows の動作。
 - **記事**: 比べ方と結果の詳しい説明は [日本語の文字おこしはどれが正確？ Haas-ja・Whisper large-v3・Parakeet をCPUだけで比べた実測](https://congaroo.org/media/technology/haas-ja-whisper-parakeet-cpu-comparison)。
 
 ```bash
